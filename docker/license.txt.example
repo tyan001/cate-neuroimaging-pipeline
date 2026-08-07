@@ -1,0 +1,25 @@
+your.email@institution.edu
+00000
+ *XXXXXXXXXXXXX
+ FSxxxxxxxxxxxxx
+
+# ---------------------------------------------------------------------------
+# THIS IS A PLACEHOLDER. It will not work.
+#
+# FreeSurfer requires a free license file tied to a registered user. Get one at
+#
+#     https://surfer.nmr.mgh.harvard.edu/registration.html
+#
+# You will receive a `license.txt` containing four lines: your email, a numeric
+# ID, and two key lines. Save it somewhere OUTSIDE this repository, then point
+# the pipeline at it:
+#
+#     python3 pipeline/2_freesurfer/processing_container.py /path/to/ADRC \
+#         --license /path/to/your/license.txt
+#
+# The file is bind-mounted read-only into the container at
+# /usr/local/freesurfer/.license — it is never copied into the image and never
+# committed (see .gitignore).
+#
+# A license is personal. Do not share it, commit it, or publish it.
+# ---------------------------------------------------------------------------
