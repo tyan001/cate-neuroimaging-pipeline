@@ -1,0 +1,791 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scan Viewer</title>
+<style>
+:root {
+  --bg: #0e1116;
+  --panel: #161b22;
+  --panel-2: #1c222b;
+  --line: #2a313c;
+  --text: #d8dee6;
+  --muted: #8b95a3;
+  --accent: #4fa3ff;
+  --t1w: #5cc8a8;
+  --pet: #f0a04b;
+  --ct: #a992f0;
+  --warn: #f07b6b;
+  --cross: rgba(79, 163, 255, .75);
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; height: 100vh; display: grid; grid-template-columns: 320px minmax(0, 1fr); background: var(--bg); color: var(--text); overflow: hidden; }
+button, input, select { font: inherit; color: inherit; background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 4px 8px; }
+button { cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .4; cursor: default; }
+input[type=number] { width: 88px; }
+code, .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
+.muted { color: var(--muted); }
+
+/* sidebar */
+aside { border-right: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+.search { padding: 12px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+.search > * { min-width: 0; }
+.search h1 { font-size: 14px; margin: 0; }
+.search .root { font-size: 11px; word-break: break-all; }
+.search .field { display: grid; gap: 3px; font-size: 11px; color: var(--muted); }
+.row { display: flex; gap: 6px; align-items: center; }
+.row button { flex: none; }
+.row input[type=text] { flex: 1; min-width: 0; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; flex: 1; background: transparent; }
+.seg button.on { background: var(--accent); color: #fff; }
+#sessions { overflow-y: auto; flex: 1; padding: 6px; }
+.session { border: 1px solid var(--line); border-radius: 6px; margin-bottom: 6px; background: var(--panel-2); }
+.session.open { border-color: var(--accent); }
+.session > header { padding: 8px 10px; cursor: pointer; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.session .date { font-weight: 600; font-variant-numeric: tabular-nums; }
+.chip { font-size: 11px; padding: 0 6px; border-radius: 9px; border: 1px solid currentColor; }
+.chip.t1w, .chip.mprage { color: var(--t1w); }
+.chip.pet { color: var(--pet); }
+.chip.ct { color: var(--ct); }
+.chip.mod { color: var(--muted); }
+.files { padding: 0 6px 8px; }
+.files .group { color: var(--muted); font-size: 11px; margin: 8px 4px 2px; word-break: break-all; }
+.file { display: flex; justify-content: space-between; gap: 8px; padding: 3px 6px; border-radius: 4px; cursor: pointer; word-break: break-all; }
+.file:hover { background: var(--line); }
+.file.active { background: var(--accent); color: #fff; }
+.file.key { font-weight: 600; }
+.file .size { flex: none; color: var(--muted); font-size: 11px; }
+.file.active .size { color: #fff; }
+.empty { padding: 16px; color: var(--muted); }
+
+/* main */
+main { display: grid; grid-template-rows: auto 1fr; grid-template-columns: minmax(0, 1fr); min-width: 0; min-height: 0; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.toolbar .title { flex: 1 1 100%; display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.toolbar .title b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.toolbar .title .mono { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+.toolbar label { display: flex; gap: 5px; align-items: center; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 4px; padding: 4px; min-height: 0; }
+.grid.single .view:not(.max), .grid.single .info { display: none; }
+.grid.single .view.max { grid-column: 1 / 3; grid-row: 1 / 3; }
+.view { position: relative; background: #000; border-radius: 4px; overflow: hidden; min-height: 0; }
+.view canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
+.view .tag { position: absolute; top: 6px; left: 8px; font-size: 11px; color: var(--muted); pointer-events: none; }
+.overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--muted); pointer-events: none; }
+.overlay.err { color: var(--warn); }
+.info { background: var(--panel); border-radius: 4px; overflow-y: auto; padding: 10px 12px; min-height: 0; }
+.info h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 12px 0 4px; }
+.info h3:first-child { margin-top: 0; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; }
+.kv > :nth-child(odd) { color: var(--muted); }
+.kv > :nth-child(even) { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; word-break: break-all; }
+#readout .val { font-size: 18px; color: var(--text); }
+#hist { width: 100%; height: 70px; display: block; background: var(--panel-2); border-radius: 4px; }
+details summary { cursor: pointer; color: var(--muted); margin: 10px 0 4px; }
+pre { margin: 0; white-space: pre-wrap; word-break: break-all; max-height: 360px; overflow: auto; background: var(--panel-2); padding: 8px; border-radius: 4px; }
+.help { font-size: 11px; color: var(--muted); }
+
+@media (max-width: 800px) {
+  body { grid-template-columns: minmax(0, 1fr); grid-template-rows: 40vh auto; overflow-x: hidden; overflow-y: auto; height: auto; }
+  .toolbar label { flex-wrap: wrap; }
+  input[type=number] { width: 72px; }
+  aside { border-right: 0; border-bottom: 1px solid var(--line); }
+  .grid { grid-template-columns: 1fr; grid-template-rows: repeat(3, 70vw) auto; }
+}
+</style>
+</head>
+<body>
+<aside>
+  <div class="search">
+    <h1>Scan Viewer <span class="muted">· read-only</span></h1>
+    <div class="field">Dataset folder, or any subject / session / scan path
+      <form class="row" id="rootForm">
+        <input type="text" id="rootInput" list="rootList" placeholder="/mnt/backup/dev/NWSI/ADRC" autocomplete="off" spellcheck="false">
+        <button type="submit">Open</button>
+      </form>
+    </div>
+    <datalist id="rootList"></datalist>
+    <div class="root muted" id="root"></div>
+    <form class="row" id="searchForm">
+      <button type="button" id="prevSubj" title="Previous subject">‹</button>
+      <input type="text" id="subject" list="subjectList" placeholder="Subject ID, e.g. 900001" autocomplete="off" spellcheck="false">
+      <button type="button" id="nextSubj" title="Next subject">›</button>
+      <button type="submit">Find</button>
+    </form>
+    <datalist id="subjectList"></datalist>
+    <div class="seg" id="filter">
+      <button data-f="all" class="on">All sessions</button>
+      <button data-f="t1w">T1w</button>
+      <button data-f="pet">PET</button>
+    </div>
+  </div>
+  <div id="sessions"><div class="empty">Enter a subject ID to list its sessions.</div></div>
+</aside>
+
+<main>
+  <div class="toolbar">
+    <div class="title"><b id="fileName">No volume open</b><span class="mono" id="filePath"></span></div>
+    <label id="frameWrap" hidden>Frame <select id="frame"></select></label>
+    <label>Colormap
+      <select id="cmap">
+        <option value="gray">Gray</option>
+        <option value="hot">Hot</option>
+        <option value="inferno">Inferno</option>
+        <option value="viridis">Viridis</option>
+        <option value="labels">Labels</option>
+      </select>
+    </label>
+    <label>Window <input type="number" id="wmin" step="any"> – <input type="number" id="wmax" step="any"></label>
+    <button id="autoWin" title="0.5–99.5 percentile of non-zero voxels">Auto</button>
+    <button id="fullWin" title="Full data range">Full</button>
+    <label><input type="checkbox" id="radio"> Radiological</label>
+    <label><input type="checkbox" id="cross" checked> Crosshair</label>
+    <label><input type="checkbox" id="smooth"> Smooth</label>
+  </div>
+
+  <div class="grid" id="grid">
+    <div class="view" data-view="axial"><canvas></canvas><span class="tag">Axial</span></div>
+    <div class="view" data-view="coronal"><canvas></canvas><span class="tag">Coronal</span></div>
+    <div class="view" data-view="sagittal"><canvas></canvas><span class="tag">Sagittal</span></div>
+    <div class="info">
+      <h3>Cursor</h3>
+      <div class="kv" id="readout"><span>value</span><span class="val">–</span></div>
+      <h3>Intensity</h3>
+      <canvas id="hist"></canvas>
+      <div class="kv" id="stats"></div>
+      <h3>Header</h3>
+      <div class="kv" id="header"><span class="muted">–</span><span></span></div>
+      <details id="affineBox"><summary>Affine (file orientation)</summary><pre id="affine"></pre></details>
+      <details id="sidecarBox"><summary>JSON sidecar</summary><pre id="sidecar"></pre></details>
+      <h3>Controls</h3>
+      <div class="help">
+        Click / drag: move cursor · Wheel or ↑↓: change slice · Right-drag: window (↔ width, ↕ level) ·
+        Double-click: enlarge view · <b>[</b> <b>]</b>: prev/next session · <b>,</b> <b>.</b>: prev/next file in session
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+"use strict";
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+
+const state = {
+  root: "", subjects: [], subject: null, sessions: [], filter: "all",
+  openDate: null, sessionFiles: {}, path: null,
+  info: null, vol: null, cursor: [0, 0, 0],
+  win: [0, 1], cmap: "gray", lut: null,
+};
+
+const KIND_ORDER = { all: ["pet", "t1w", "mprage", "ct"], t1w: ["t1w", "mprage"], pet: ["pet"] };
+const KIND_LABEL = { t1w: "T1w", mprage: "CorMPRAGE", pet: "PET", ct: "CT" };
+
+async function api(path, params = {}) {
+  const res = await fetch(path + "?" + new URLSearchParams({ root: state.root, ...params }));
+  if (path === "/api/volume") {
+    if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+    return res.arrayBuffer();
+  }
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error || res.statusText);
+  return body;
+}
+
+function fmtSize(n) {
+  const u = ["B", "KB", "MB", "GB"]; let i = 0;
+  while (n >= 1024 && i < 3) { n /= 1024; i++; }
+  return (i ? n.toFixed(1) : n) + " " + u[i];
+}
+function fmtNum(v) {
+  if (v === null || v === undefined || Number.isNaN(v)) return "–";
+  if (Number.isInteger(v)) return String(v);
+  const a = Math.abs(v);
+  return (a !== 0 && (a < 1e-3 || a >= 1e6)) ? v.toExponential(3) : +v.toPrecision(5) + "";
+}
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") e.className = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v);
+  }
+  for (const k of kids) if (k !== null && k !== undefined) e.append(k);
+  return e;
+}
+function kv(target, pairs) {
+  target.replaceChildren(...pairs.flatMap(([k, v]) => [el("span", {}, k), el("span", {}, String(v))]));
+}
+
+/* ---------- URL hash state ---------- */
+function writeHash() {
+  const p = new URLSearchParams();
+  if (state.root) p.set("r", state.root);
+  if (state.subject) p.set("s", state.subject);
+  if (state.openDate) p.set("d", state.openDate);
+  if (state.path) p.set("f", state.path);
+  history.replaceState(null, "", "#" + p);
+}
+async function restoreFromHash(p) {
+  if (!p.get("s")) return;
+  await loadSubject(p.get("s"), { autoOpen: false });
+  if (p.get("d")) await toggleSession(p.get("d"), { autoOpen: !p.get("f") });
+  if (p.get("f")) openVolume(p.get("f"));
+}
+
+/* ---------- sidebar ---------- */
+async function loadSubject(id, { autoOpen = true } = {}) {
+  id = id.trim();
+  if (!id) return;
+  $("#subject").value = id;
+  const box = $("#sessions");
+  box.replaceChildren(el("div", { class: "empty" }, "Loading…"));
+  try {
+    const data = await api("/api/subject", { id });
+    Object.assign(state, { subject: id, sessions: data.sessions, openDate: null, sessionFiles: {} });
+  } catch (e) {
+    state.subject = null;
+    box.replaceChildren(el("div", { class: "empty" }, `Subject ${id} not found.`));
+    return;
+  }
+  renderSessions();
+  writeHash();
+  const first = visibleSessions()[0];
+  if (autoOpen && first) toggleSession(first.date);
+}
+
+function visibleSessions() {
+  if (state.filter === "all") return state.sessions;
+  return state.sessions.filter(s => KIND_ORDER[state.filter].some(k => s.scans[k]));
+}
+
+function renderSessions() {
+  const box = $("#sessions");
+  const list = visibleSessions();
+  if (!state.sessions.length) return box.replaceChildren(el("div", { class: "empty" }, "No session folders for this subject."));
+  if (!list.length) return box.replaceChildren(el("div", { class: "empty" }, `No ${KIND_LABEL[state.filter]} sessions for ${state.subject}.`));
+  box.replaceChildren(...list.map(s => {
+    const chips = ["t1w", "mprage", "pet", "ct"].filter(k => s.scans[k])
+      .map(k => el("span", { class: `chip ${k}` }, KIND_LABEL[k] + (s.scans[k].length > 1 ? ` ×${s.scans[k].length}` : "")));
+    if (!chips.length) chips.push(el("span", { class: "chip mod" }, s.folders.join(", ") || "empty"));
+    const card = el("div", { class: "session" + (s.date === state.openDate ? " open" : ""), "data-date": s.date },
+      el("header", { onclick: () => toggleSession(s.date) },
+        el("span", { class: "date" }, s.label), el("span", { class: "muted" }, s.modality), ...chips),
+      el("div", { class: "files" }));
+    if (s.date === state.openDate) renderFiles(card, s);
+    return card;
+  }));
+  box.append(el("div", { class: "empty" }, `${list.length} of ${state.sessions.length} session(s) shown`));
+}
+
+async function toggleSession(date, { autoOpen = true } = {}) {
+  const s = state.sessions.find(x => x.date === date);
+  if (!s) return;
+  if (state.openDate === date && autoOpen) { state.openDate = null; renderSessions(); writeHash(); return; }
+  state.openDate = date;
+  if (!state.sessionFiles[date]) {
+    try { state.sessionFiles[date] = (await api("/api/session", { id: state.subject, date })).groups; }
+    catch (e) { state.sessionFiles[date] = []; }
+  }
+  renderSessions();
+  $(`.session[data-date="${date}"]`)?.scrollIntoView({ block: "nearest" });
+  writeHash();
+  if (autoOpen) {
+    const kind = KIND_ORDER[state.filter].find(k => s.scans[k]);
+    const target = kind ? s.scans[kind][0] : sessionFileList(date)[0];
+    if (target) openVolume(target);
+  }
+}
+
+function sessionFileList(date) {
+  return (state.sessionFiles[date] || []).flatMap(g => g.files.map(f => f.path));
+}
+
+function renderFiles(card, s) {
+  const box = $(".files", card);
+  const groups = state.sessionFiles[s.date] || [];
+  const keys = new Set(Object.values(s.scans).flat());
+  if (!groups.length) return box.replaceChildren(el("div", { class: "group" }, "No volumes in this session."));
+  box.replaceChildren(...groups.flatMap(g => [
+    el("div", { class: "group" }, g.folder === "." ? "(session root)" : g.folder + "/"),
+    ...g.files.map(f => el("div", {
+      class: "file" + (keys.has(f.path) ? " key" : "") + (f.path === state.path ? " active" : ""),
+      title: f.path, onclick: (ev) => { ev.stopPropagation(); openVolume(f.path); },
+    }, el("span", {}, f.name), el("span", { class: "size" }, f.size ? fmtSize(f.size) : "empty"))),
+  ]));
+}
+
+function stepSession(delta) {
+  const list = visibleSessions();
+  if (!list.length) return;
+  const i = list.findIndex(s => s.date === state.openDate);
+  const next = list[Math.min(Math.max(i + delta, 0), list.length - 1)];
+  if (next && next.date !== state.openDate) toggleSession(next.date);
+}
+function stepFile(delta) {
+  const files = sessionFileList(state.openDate);
+  const i = files.indexOf(state.path);
+  const next = files[Math.min(Math.max(i + delta, 0), files.length - 1)];
+  if (next && next !== state.path) openVolume(next);
+}
+function stepSubject(delta) {
+  const list = state.subjects;
+  if (!list.length) return;
+  const i = list.indexOf(state.subject ?? $("#subject").value.trim());
+  const next = i < 0 ? list[0] : list[Math.min(Math.max(i + delta, 0), list.length - 1)];
+  if (next !== state.subject) loadSubject(next);
+}
+
+/* ---------- volume loading ---------- */
+let loadToken = 0;
+async function openVolume(path, frame = null) {
+  const token = ++loadToken;
+  const frameChange = frame !== null;
+  state.path = path;
+  $$(".file").forEach(f => f.classList.toggle("active", f.title === path));
+  writeHash();
+  $("#fileName").textContent = path.split("/").pop();
+  $("#filePath").textContent = path;
+
+  let info = state.info;
+  if (frame === null) {
+    showMessage("Reading header…");
+    try { info = await api("/api/info", { path }); } catch (e) { info = { error: e.message }; }
+    if (token !== loadToken) return;
+    state.info = info;
+    renderInfo(info);
+    if (info.error) {
+      state.vol = null;
+      clearViews();
+      $("#frameWrap").hidden = true;
+      for (const id of ["#cmap", "#wmin", "#wmax", "#autoWin", "#fullWin"]) $(id).disabled = true;
+      return showMessage(info.error, true);
+    }
+    $("#cmap").disabled = false;
+    const sel = $("#frame");
+    $("#frameWrap").hidden = info.frames <= 1;
+    sel.replaceChildren(
+      ...(info.frames > 1 ? [el("option", { value: "mean" }, "mean of all")] : []),
+      ...Array.from({ length: Math.min(info.frames, 2000) }, (_, i) => el("option", { value: i }, `${i + 1} / ${info.frames}`)));
+    frame = "0";
+    sel.value = frame;
+  }
+
+  const mb = info.shape.slice(0, 3).reduce((a, b) => a * b, 1) * 2 / 1048576;
+  showMessage(`Loading volume (${mb.toFixed(0)} MB)…`);
+  let buf;
+  try { buf = await api("/api/volume", { path, frame }); }
+  catch (e) { if (token === loadToken) showMessage(e.message, true); return; }
+  if (token !== loadToken) return;
+
+  const hlen = new DataView(buf).getUint32(0, true);
+  const meta = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 4, hlen)));
+  const start = 4 + hlen;
+  // Uint16Array needs an even byte offset, so copy when the header length is odd.
+  const data = start % 2 ? new Uint16Array(buf.slice(start)) : new Uint16Array(buf, start);
+  const [nx, ny, nz] = meta.dims;
+  const keepCursor = frameChange && state.vol && state.vol.dims.join() === meta.dims.join();
+  state.vol = { ...meta, data, strides: [ny * nz, nz, 1] };
+  if (!keepCursor) {
+    state.cursor = [nx >> 1, ny >> 1, nz >> 1];
+    const isPet = /\/pet\/|_PET/i.test(path);
+    state.cmap = meta.labels ? "labels" : isPet ? "hot" : "gray";
+    $("#cmap").value = state.cmap;
+    state.win = [...meta.window];
+  }
+  hideMessage();
+  renderStats();
+  syncWindow();
+}
+
+function renderInfo(info) {
+  const rows = [["file size", fmtSize(info.size ?? 0)]];
+  if (info.modified) rows.push(["modified", new Date(info.modified * 1000).toLocaleString()]);
+  if (info.shape) {
+    rows.push(["format", info.format], ["shape", info.shape.join(" × ")],
+      ["voxel size", info.zooms.slice(0, 3).map(fmtNum).join(" × ") + " mm"],
+      ["dtype", info.dtype], ["orientation", info.orientation]);
+    if (info.zooms.length > 3) rows.push(["time step", info.zooms.slice(3).map(fmtNum).join(", ")]);
+    if (info.frames > 1) rows.push(["frames", info.frames]);
+    for (const [k, v] of Object.entries(info.header || {})) rows.push([k, Array.isArray(v) ? v.join(", ") : v]);
+  }
+  kv($("#header"), rows);
+  $("#affineBox").hidden = !info.affine;
+  $("#affine").textContent = (info.affine || []).map(r => r.map(v => fmtNum(v).padStart(10)).join(" ")).join("\n");
+  const sc = info.sidecar;
+  $("#sidecarBox").hidden = !sc;
+  if (sc) {
+    $("#sidecarBox summary").textContent = `JSON sidecar · ${sc.file}`;
+    $("#sidecar").textContent = sc.error ? `Could not parse: ${sc.error}` : JSON.stringify(sc.data, null, 2);
+  }
+}
+
+/* ---------- colormaps ---------- */
+const STOPS = {
+  gray: [[0, 0, 0], [255, 255, 255]],
+  hot: [[0, 0, 0], [230, 0, 0], [255, 210, 0], [255, 255, 255]],
+  inferno: [[0, 0, 4], [87, 16, 110], [188, 55, 84], [249, 142, 9], [252, 255, 164]],
+  viridis: [[68, 1, 84], [59, 82, 139], [33, 145, 140], [94, 201, 98], [253, 231, 37]],
+};
+function ramp(stops, t) {
+  const x = t * (stops.length - 1), i = Math.min(Math.floor(x), stops.length - 2), f = x - i;
+  return stops[i].map((a, c) => a + (stops[i + 1][c] - a) * f);
+}
+function labelColor(v) {
+  if (v === 0) return [0, 0, 0];
+  let h = Math.imul(v ^ 0x9e3779b9, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16;
+  const hue = (h >>> 0) % 360, s = 0.55 + ((h >>> 9) % 40) / 100, l = 0.45 + ((h >>> 17) % 20) / 100;
+  const k = n => (n + hue / 30) % 12, a = s * Math.min(l, 1 - l);
+  return [0, 8, 4].map(n => 255 * (l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1))));
+}
+function buildLut() {
+  const v = state.vol;
+  const lut = new Uint8ClampedArray(65536 * 4);
+  if (state.cmap === "labels") {
+    for (let q = 0; q < 65536; q++) {
+      const c = labelColor(Math.round(v.offset + q * v.scale));
+      lut[q * 4] = c[0]; lut[q * 4 + 1] = c[1]; lut[q * 4 + 2] = c[2]; lut[q * 4 + 3] = 255;
+    }
+  } else {
+    const table = Array.from({ length: 256 }, (_, i) => ramp(STOPS[state.cmap], i / 255));
+    const qlo = (state.win[0] - v.offset) / v.scale, qhi = (state.win[1] - v.offset) / v.scale;
+    const span = Math.max(qhi - qlo, 1e-9);
+    for (let q = 0; q < 65536; q++) {
+      const c = table[Math.max(0, Math.min(255, Math.round((q - qlo) / span * 255)))];
+      lut[q * 4] = c[0]; lut[q * 4 + 1] = c[1]; lut[q * 4 + 2] = c[2]; lut[q * 4 + 3] = 255;
+    }
+  }
+  state.lut = lut;
+}
+
+/* ---------- rendering ---------- */
+// fixed: axis held constant; u/v: horizontal/vertical axes; flips put anterior-left on sagittal and
+// superior/anterior at the top everywhere. Letters are [left, right, top, bottom].
+function spec(name) {
+  const r = $("#radio").checked;
+  if (name === "axial") return { fixed: 2, u: 0, v: 1, flipU: r, letters: r ? ["R", "L", "A", "P"] : ["L", "R", "A", "P"] };
+  if (name === "coronal") return { fixed: 1, u: 0, v: 2, flipU: r, letters: r ? ["R", "L", "S", "I"] : ["L", "R", "S", "I"] };
+  return { fixed: 0, u: 1, v: 2, flipU: true, letters: ["A", "P", "S", "I"] };
+}
+
+const views = $$(".view").map(div => ({ div, name: div.dataset.view, canvas: $("canvas", div), off: document.createElement("canvas"), geom: null }));
+
+function clearViews() {
+  for (const vw of views) {
+    const ctx = vw.canvas.getContext("2d");
+    ctx.clearRect(0, 0, vw.canvas.width, vw.canvas.height);
+    vw.geom = null;
+  }
+  $("#hist").getContext("2d").clearRect(0, 0, 9999, 999);
+  kv($("#stats"), []);
+  kv($("#readout"), [["value", "–"]]);
+}
+
+function drawView(vw) {
+  const v = state.vol;
+  if (!v) return;
+  const sp = spec(vw.name);
+  const nu = v.dims[sp.u], nv = v.dims[sp.v];
+  const base = state.cursor[sp.fixed] * v.strides[sp.fixed];
+  const su = v.strides[sp.u], sv = v.strides[sp.v];
+  vw.off.width = nu; vw.off.height = nv;
+  const octx = vw.off.getContext("2d");
+  const img = octx.createImageData(nu, nv);
+  const px = img.data, lut = state.lut, data = v.data;
+  for (let row = 0; row < nv; row++) {
+    const vi = nv - 1 - row;
+    let o = row * nu * 4;
+    for (let col = 0; col < nu; col++, o += 4) {
+      const ui = sp.flipU ? nu - 1 - col : col;
+      const l = data[base + ui * su + vi * sv] * 4;
+      px[o] = lut[l]; px[o + 1] = lut[l + 1]; px[o + 2] = lut[l + 2]; px[o + 3] = 255;
+    }
+  }
+  octx.putImageData(img, 0, 0);
+
+  const dpr = window.devicePixelRatio || 1;
+  const cw = vw.canvas.clientWidth, ch = vw.canvas.clientHeight;
+  if (vw.canvas.width !== Math.round(cw * dpr)) vw.canvas.width = Math.round(cw * dpr);
+  if (vw.canvas.height !== Math.round(ch * dpr)) vw.canvas.height = Math.round(ch * dpr);
+  const ctx = vw.canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = "#000"; ctx.fillRect(0, 0, cw, ch);
+  const physW = nu * v.zooms[sp.u], physH = nv * v.zooms[sp.v];
+  const pad = 18, scale = Math.min((cw - 2 * pad) / physW, (ch - 2 * pad) / physH);
+  const w = physW * scale, h = physH * scale, x0 = (cw - w) / 2, y0 = (ch - h) / 2;
+  ctx.imageSmoothingEnabled = $("#smooth").checked;
+  ctx.drawImage(vw.off, x0, y0, w, h);
+  vw.geom = { x0, y0, w, h, nu, nv, sp };
+
+  const cu = state.cursor[sp.u], cv = state.cursor[sp.v];
+  const cx = x0 + ((sp.flipU ? nu - 1 - cu : cu) + 0.5) * w / nu;
+  const cy = y0 + ((nv - 1 - cv) + 0.5) * h / nv;
+  if ($("#cross").checked) {
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--cross");
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x0, cy); ctx.lineTo(cx - 6, cy); ctx.moveTo(cx + 6, cy); ctx.lineTo(x0 + w, cy);
+    ctx.moveTo(cx, y0); ctx.lineTo(cx, cy - 6); ctx.moveTo(cx, cy + 6); ctx.lineTo(cx, y0 + h);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "#9aa4b2"; ctx.font = "12px system-ui";
+  const [L, R, T, B] = sp.letters;
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "left"; ctx.fillText(L, 4, ch / 2);
+  ctx.textAlign = "right"; ctx.fillText(R, cw - 4, ch / 2);
+  ctx.textAlign = "center"; ctx.fillText(T, cw / 2, 9); ctx.fillText(B, cw / 2, ch - 9);
+  ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+  ctx.fillText(`slice ${state.cursor[sp.fixed] + 1} / ${v.dims[sp.fixed]}`, cw - 8, ch - 4);
+}
+
+let rafPending = false;
+function redraw() {
+  if (rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(() => {
+    rafPending = false;
+    if (!state.vol) return;
+    views.forEach(drawView);
+    renderReadout();
+    drawHist();
+  });
+}
+
+function valueAt([i, j, k]) {
+  const v = state.vol;
+  return v.offset + v.data[i * v.strides[0] + j * v.strides[1] + k] * v.scale;
+}
+
+function renderReadout() {
+  const v = state.vol, c = state.cursor, a = v.affine;
+  const world = [0, 1, 2].map(r => a[r][0] * c[0] + a[r][1] * c[1] + a[r][2] * c[2] + a[r][3]);
+  const val = valueAt(c);
+  const rows = [["value", fmtNum(v.labels || v.scale === 1 ? Math.round(val) : val)],
+    ["voxel (RAS)", c.join(", ")], ["world mm", world.map(x => x.toFixed(1)).join(", ")]];
+  kv($("#readout"), rows);
+  $("#readout span:nth-child(2)").classList.add("val");
+}
+
+function renderStats() {
+  const v = state.vol;
+  const rows = [["min / max", `${fmtNum(v.min)} / ${fmtNum(v.max)}`], ["mean", fmtNum(v.mean)],
+    ["auto window", v.window.map(fmtNum).join(" – ")]];
+  if (v.labels) rows.push(["labels", `${v.labels.length} distinct values`]);
+  if (v.nonfinite) rows.push(["NaN / Inf", v.nonfinite]);
+  if (v.scale !== 1) rows.push(["display precision", fmtNum(v.scale)]);
+  kv($("#stats"), rows);
+  // 128-bin histogram of non-zero voxels, sampled for speed.
+  const bins = new Float64Array(128), d = v.data, zeroQ = Math.round(-v.offset / v.scale);
+  v.histMax = v.labels ? v.max : Math.min(v.max, v.window[1] + (v.window[1] - v.min) * 0.25);
+  const per = (Math.round((v.histMax - v.min) / v.scale) + 1) / 128;
+  const step = Math.max(1, Math.floor(d.length / 2e6));
+  for (let i = 0; i < d.length; i += step) if (d[i] !== zeroQ) bins[Math.min(127, Math.floor(d[i] / per))]++;
+  v.hist = bins.map(b => Math.log1p(b));
+}
+
+function drawHist() {
+  const cv = $("#hist"), v = state.vol, dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = w * dpr; cv.height = h * dpr;
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const max = Math.max(...v.hist, 1), bw = w / v.hist.length;
+  ctx.fillStyle = "#5b6676";
+  v.hist.forEach((b, i) => { const bh = b / max * (h - 4); ctx.fillRect(i * bw, h - bh, Math.max(bw - 0.5, 0.5), bh); });
+  if (v.labels) return;
+  const toX = val => Math.max(0, Math.min(w, (val - v.min) / ((v.histMax - v.min) || 1) * w));
+  ctx.fillStyle = "rgba(79,163,255,.18)";
+  ctx.fillRect(toX(state.win[0]), 0, toX(state.win[1]) - toX(state.win[0]), h);
+  ctx.strokeStyle = "#4fa3ff";
+  for (const x of state.win.map(toX)) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+}
+
+function syncWindow() {
+  $("#wmin").value = +state.win[0].toPrecision(5);
+  $("#wmax").value = +state.win[1].toPrecision(5);
+  const labels = state.cmap === "labels";
+  for (const id of ["#wmin", "#wmax", "#autoWin", "#fullWin"]) $(id).disabled = labels;
+  buildLut();
+  redraw();
+}
+
+function showMessage(text, isErr = false) {
+  for (const vw of views) {
+    let o = $(".overlay", vw.div);
+    if (!o) vw.div.append(o = el("div", { class: "overlay" }));
+    o.hidden = vw.name !== "axial" && isErr;
+    o.textContent = text;
+    o.classList.toggle("err", isErr);
+  }
+}
+function hideMessage() { $$(".view .overlay").forEach(o => o.remove()); }
+
+/* ---------- interaction ---------- */
+function eventVoxel(vw, ev) {
+  const g = vw.geom, r = vw.canvas.getBoundingClientRect();
+  let col = Math.floor((ev.clientX - r.left - g.x0) / g.w * g.nu);
+  let row = Math.floor((ev.clientY - r.top - g.y0) / g.h * g.nv);
+  col = Math.max(0, Math.min(g.nu - 1, col)); row = Math.max(0, Math.min(g.nv - 1, row));
+  const c = [...state.cursor];
+  c[g.sp.u] = g.sp.flipU ? g.nu - 1 - col : col;
+  c[g.sp.v] = g.nv - 1 - row;
+  return c;
+}
+function moveSlice(vw, delta) {
+  if (!state.vol) return;
+  const f = spec(vw.name).fixed;
+  state.cursor[f] = Math.max(0, Math.min(state.vol.dims[f] - 1, state.cursor[f] + delta));
+  redraw();
+}
+
+let hovered = null;
+for (const vw of views) {
+  const c = vw.canvas;
+  c.addEventListener("contextmenu", e => e.preventDefault());
+  c.addEventListener("mouseenter", () => hovered = vw);
+  c.addEventListener("mouseleave", () => { if (hovered === vw) hovered = null; });
+  c.addEventListener("wheel", e => { e.preventDefault(); moveSlice(vw, e.deltaY < 0 ? 1 : -1); }, { passive: false });
+  c.addEventListener("dblclick", () => {
+    const grid = $("#grid"), on = !vw.div.classList.contains("max");
+    views.forEach(o => o.div.classList.remove("max"));
+    vw.div.classList.toggle("max", on);
+    grid.classList.toggle("single", on);
+    redraw();
+  });
+  c.addEventListener("pointerdown", e => {
+    if (!state.vol || !vw.geom) return;
+    c.setPointerCapture(e.pointerId);
+    const windowing = e.button === 2 || e.shiftKey;
+    const start = { x: e.clientX, y: e.clientY, win: [...state.win] };
+    const move = ev => {
+      if (windowing) {
+        if (state.cmap === "labels") return;
+        const range = (state.vol.max - state.vol.min) || 1;
+        const width = Math.max(start.win[1] - start.win[0] + (ev.clientX - start.x) / 400 * range, range * 1e-4);
+        const level = (start.win[0] + start.win[1]) / 2 - (ev.clientY - start.y) / 400 * range;
+        state.win = [level - width / 2, level + width / 2];
+        syncWindow();
+      } else {
+        state.cursor = eventVoxel(vw, ev);
+        redraw();
+      }
+    };
+    move(e);
+    const up = () => { c.removeEventListener("pointermove", move); c.removeEventListener("pointerup", up); };
+    c.addEventListener("pointermove", move);
+    c.addEventListener("pointerup", up);
+  });
+}
+
+document.addEventListener("keydown", e => {
+  if (e.target.matches("input, select")) return;
+  const vw = hovered || views[0];
+  const keys = {
+    ArrowUp: () => moveSlice(vw, 1), ArrowDown: () => moveSlice(vw, -1),
+    PageUp: () => moveSlice(vw, 10), PageDown: () => moveSlice(vw, -10),
+    "[": () => stepSession(-1), "]": () => stepSession(1),
+    ",": () => stepFile(-1), ".": () => stepFile(1),
+  };
+  if (keys[e.key]) { e.preventDefault(); keys[e.key](); }
+});
+
+$("#searchForm").addEventListener("submit", e => { e.preventDefault(); loadSubject($("#subject").value); });
+$("#subject").addEventListener("change", e => { if (state.subjects.includes(e.target.value.trim())) loadSubject(e.target.value); });
+$("#prevSubj").addEventListener("click", () => stepSubject(-1));
+$("#nextSubj").addEventListener("click", () => stepSubject(1));
+$$("#filter button").forEach(b => b.addEventListener("click", () => {
+  state.filter = b.dataset.f;
+  $$("#filter button").forEach(x => x.classList.toggle("on", x === b));
+  if (!state.subject) return;
+  const list = visibleSessions();
+  if (list.length && !list.some(s => s.date === state.openDate)) toggleSession(list[0].date);
+  else renderSessions();
+}));
+$("#frame").addEventListener("change", e => state.path && openVolume(state.path, e.target.value));
+$("#cmap").addEventListener("change", e => { state.cmap = e.target.value; state.vol && syncWindow(); });
+for (const id of ["#wmin", "#wmax"]) $(id).addEventListener("change", () => {
+  const a = parseFloat($("#wmin").value), b = parseFloat($("#wmax").value);
+  if (Number.isFinite(a) && Number.isFinite(b) && b > a) { state.win = [a, b]; if (state.vol) syncWindow(); }
+});
+$("#autoWin").addEventListener("click", () => { if (state.vol) { state.win = [...state.vol.window]; syncWindow(); } });
+$("#fullWin").addEventListener("click", () => { if (state.vol) { state.win = [state.vol.min, state.vol.max]; syncWindow(); } });
+for (const id of ["#radio", "#cross", "#smooth"]) $(id).addEventListener("change", redraw);
+new ResizeObserver(redraw).observe($("#grid"));
+
+async function openDataset(root) {
+  root = root.trim();
+  $("#rootInput").value = root;
+  Object.assign(state, { root, subjects: [], subject: null, sessions: [], openDate: null, sessionFiles: {}, path: null, vol: null, info: null });
+  loadToken++;
+  $("#subjectList").replaceChildren();
+  $("#subject").value = "";
+  $("#sessions").replaceChildren(el("div", { class: "empty" }, root ? "Enter a subject ID to list its sessions." : "Choose a dataset folder first."));
+  $("#fileName").textContent = "No volume open"; $("#filePath").textContent = "";
+  clearViews(); hideMessage();
+  if (!root) { $("#root").textContent = "No dataset folder chosen."; return false; }
+  try {
+    const { root: resolved, subjects } = await api("/api/subjects");
+    state.root = resolved;
+    $("#rootInput").value = resolved;
+    state.subjects = subjects;
+    $("#root").textContent = `${subjects.length} subject folders`;
+    $("#subjectList").replaceChildren(...subjects.map(s => el("option", { value: s })));
+    rememberRoot(resolved);
+    fillRootList();
+    writeHash();
+    return true;
+  } catch (e) {
+    $("#root").textContent = e.message;
+    $("#sessions").replaceChildren(el("div", { class: "empty" }, "Dataset folder not found."));
+    return false;
+  }
+}
+
+// Paths opened before, per browser; purely a convenience for the suggestion list.
+const RECENT_KEY = "scanViewer.recentRoots";
+function recentRoots() {
+  try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch { return []; }
+}
+function rememberRoot(root) {
+  const list = [root, ...recentRoots().filter(r => r !== root)].slice(0, 10);
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch { /* storage unavailable */ }
+}
+let serverRoots = [];
+function fillRootList() {
+  const all = [...new Set([...serverRoots, ...recentRoots()])];
+  $("#rootList").replaceChildren(...all.map(r => el("option", { value: r })));
+}
+
+// Accepts a dataset folder or any path inside one, and opens the page at that spot.
+async function openPath(text) {
+  text = text.trim();
+  if (!text) return openDataset("");
+  let loc;
+  try { loc = await api("/api/locate", { path: text }); }
+  catch (e) { $("#root").textContent = e.message; return; }
+  if (!(await openDataset(loc.root))) return;
+  if (!loc.subject) return;
+  await loadSubject(loc.subject, { autoOpen: !loc.date });
+  if (loc.date) await toggleSession(loc.date, { autoOpen: !loc.file });
+  if (loc.file) openVolume(loc.file);
+}
+
+$("#rootForm").addEventListener("submit", e => { e.preventDefault(); openPath($("#rootInput").value); });
+
+(async () => {
+  try { serverRoots = (await api("/api/roots")).roots; }
+  catch (e) { $("#root").textContent = "Could not reach the server: " + e.message; return; }
+  fillRootList();
+  // Read the whole hash first: opening the dataset rewrites it.
+  const hash = new URLSearchParams(location.hash.slice(1));
+  const start = hash.get("r") || serverRoots[0] || recentRoots()[0] || "";
+  if (await openDataset(start)) restoreFromHash(hash);
+})();
+</script>
+</body>
+</html>

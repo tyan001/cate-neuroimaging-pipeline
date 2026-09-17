@@ -9,6 +9,8 @@ only the scans that are still unprocessed.
 | `find_missing.py` | Report: the status of every MRI and PET scan. Changes nothing. |
 | `process_missing.py` | Runs FreeSurfer and SUVR on the scans the report marks as runnable, and nothing else |
 | `inventory.py` | The shared scan-and-classify logic both scripts use |
+| `merge_batch.py` | Checked, append-only merge of a processed batch into the main folder (see [`sync/README.md`](../../sync/README.md)) |
+| `directory_data_count.py` | Folder and symlink-farm counts for the whole dataset |
 
 The processing itself is not reimplemented. `process_missing.py` calls
 `2_freesurfer/dev` (`process_subject_freesurfer`, `process_subject_hippocampus`) and the
@@ -17,8 +19,8 @@ file names and logs are the same as when those stages run on a batch.
 
 ```bash
 # 1. What is missing? (runs anywhere; no FreeSurfer needed)
-python3 find_missing.py /path/to/ADRC
-python3 find_missing.py /path/to/ADRC --csv missing.csv
+python3 find_missing.py --root /path/to/ADRC
+python3 find_missing.py --root /path/to/ADRC --csv missing.csv
 
 # 2. What would run?
 python3 process_missing.py all /path/to/ADRC --dry-run
@@ -39,7 +41,7 @@ nohup python3 directory_stats/process_missing.py all data/ --cores 8 > missing.l
 | `no_hippocampus` | Recon finished, but no `stats/hipposubfields.{lh,rh}.T1.v22.stats` | `segmentHA_T1.sh` only |
 | `recon_failed` | `scripts/recon-all.error` exists | Reported only |
 | `recon_incomplete` | The folder exists but `T1.mgz`, `aparc+aseg.mgz` or the aseg/aparc stats are missing. Either the run is still going or it was killed. | Reported only |
-| `wrong_session` | The filename date does not match the session folder (e.g. `320071/20250826/anat/320071-20240821_T1w.nii`) | Reported only |
+| `wrong_session` | The filename date does not match the session folder (e.g. `900071/20250826/anat/900071-20240821_T1w.nii`) | Reported only |
 | `complete` | | |
 
 A recon counts as finished when its output files exist, not when a done-marker is present, so
@@ -82,7 +84,7 @@ run `5_aggregate/prune_suvr_registrations.py` to keep only the closest pair.
 ## find_missing.py
 
 ```bash
-python3 find_missing.py /path/to/ADRC [--subject ID ...] [--csv FILE] [--all]
+python3 find_missing.py [--root /path/to/ADRC] [--subject ID ...] [--csv FILE] [--all]   # --root defaults to $ADRC_ROOT
 ```
 
 Prints a count per status, lists every scan whose status is not `complete` (use `--all` to list

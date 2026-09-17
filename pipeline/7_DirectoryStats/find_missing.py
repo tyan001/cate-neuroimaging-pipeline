@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Report MRI and PET scans that have not been processed. Changes nothing.
 
-    python3 find_missing.py /path/to/ADRC
-    python3 find_missing.py /path/to/ADRC --csv missing.csv       # one row per scan
-    python3 find_missing.py /path/to/ADRC --all                   # also list complete scans
-    python3 find_missing.py /path/to/ADRC --subject 930119
+    python3 find_missing.py --root /path/to/ADRC
+    python3 find_missing.py --root /path/to/ADRC --csv missing.csv       # one row per scan
+    python3 find_missing.py --root /path/to/ADRC --all                   # also list complete scans
+    python3 find_missing.py --root /path/to/ADRC --subject 930119
+    ADRC_ROOT=/path/to/ADRC python3 find_missing.py
 
 See inventory.py for what each status means. process_missing.py acts on the same statuses.
 """
@@ -12,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import sys
 from collections import Counter
 from pathlib import Path
@@ -65,12 +67,15 @@ def print_section(title, records, states, actions, show_all):
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("root", type=Path, help="ADRC directory (one folder per subject)")
+    parser.add_argument("--root", type=Path, default=os.environ.get("ADRC_ROOT"),
+                        help="ADRC directory, one folder per subject (default: $ADRC_ROOT)")
     parser.add_argument("--subject", action="append", metavar="ID", help="Only this subject (repeatable)")
     parser.add_argument("--csv", type=Path, help="Write one row per scan to this file")
     parser.add_argument("--all", action="store_true", help="Also list complete scans")
     args = parser.parse_args(argv)
 
+    if args.root is None:
+        parser.error("--root is required unless $ADRC_ROOT is set")
     if not args.root.is_dir():
         print(f"Not a directory: {args.root}", file=sys.stderr)
         return 1

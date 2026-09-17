@@ -242,7 +242,7 @@ is the date our sites switched tracers. Override with `--compound`.
 >
 > **If you have such exceptions, run them separately with an explicit `--compound`:**
 > ```bash
-> python3 pipeline/3_suvr/suvr.py /path/to/ADRC --single-subject 110001 --compound amyvid
+> python3 pipeline/3_suvr/suvr.py /path/to/ADRC --single-subject 900001 --compound amyvid
 > ```
 > Maintaining a tracer lookup table keyed by subject and PET date, rather than relying on the
 > cutoff date, is the durable fix.
@@ -269,7 +269,7 @@ The combined CSV is the one to read:
 
 ```
 PID,Compound,Centiloid,AnteriorCingulateLeft,...,GlobalLeft,GlobalRight,Global
-110001-20200310_reg_110001-20200115_T1w.nii,Neuraceq,-8.395,0.957,...,0.955
+900001-20200310_reg_900001-20200115_T1w.nii,Neuraceq,-8.395,0.957,...,0.955
 ```
 
 ---
@@ -283,7 +283,7 @@ python3 pipeline/5_aggregate/prune_suvr_registrations.py --source /path/to/ADRC 
         --execute --quarantine /path/to/NWSI/suvr_pruned
 
 python3 pipeline/5_aggregate/suvr_symlink.py --source /path/to/ADRC --target /path/to/NWSI/suvr_link
-python3 pipeline/5_aggregate/suvr_stats_all.py -sd /path/to/NWSI/suvr_link -o suvr_output
+python3 pipeline/5_aggregate/suvr_stats_all.py -ld /path/to/NWSI/suvr_link -o suvr_output
 ```
 
 Pruning comes first because every registration of a PET scan becomes its own row in the tables. If

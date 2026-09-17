@@ -41,7 +41,7 @@ which extracts each `foo.zip` into a sibling `foo/`.
 ### 1b. Add prefixes (only for some sites)
 
 The converters key off folder names beginning `MRI_` or `PET_`. Some sites deliver folders without
-them — at our sites this affects the UF grant subjects (IDs beginning `320`). Add them in bulk:
+them — at our sites this affects one site's subjects (IDs beginning `320`). Add them in bulk:
 
 ```bash
 python3 pipeline/1_ingest/prefix.py /path/to/MRI --prefix MRI_ --dry-run   # preview
@@ -129,15 +129,15 @@ segmentHA_T1.sh <scan-filename-stem> <session>/freesurfer741
 
 Subjects run **in parallel**, one process per `CPU_CORES`. Two consequences worth internalizing:
 
-- The **FreeSurfer subject ID is the anat filename without `.nii`** — e.g. `110001-20200115_T1w`.
+- The **FreeSurfer subject ID is the anat filename without `.nii`** — e.g. `900001-20200115_T1w`.
   It embeds subject and date, so IDs are globally unique and no central `SUBJECTS_DIR` is needed.
 - Each session gets its **own** `freesurfer741/` directory holding one recon. Outputs live beside
   the data they came from, not in a shared subjects tree.
 
 ```
-ADRC/110001/20200115/
-├── anat/110001-20200115_T1w.nii
-└── freesurfer741/110001-20200115_T1w/
+ADRC/900001/20200115/
+├── anat/900001-20200115_T1w.nii
+└── freesurfer741/900001-20200115_T1w/
     ├── mri/     T1.mgz, aparc+aseg.mgz, hippoAmygLabels-T1.v22.*
     ├── surf/    lh.pial, rh.white, ...
     ├── label/

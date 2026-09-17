@@ -18,13 +18,16 @@ Build/refresh the farm first if it doesn't exist yet or is out of date:
         --source /path/to/ADRC --target /path/to/NWSI/suvr_link
 
 Usage:
-    python suvr_stats_all.py -sd /path/to/NWSI/suvr_link -o suvr_output
-    python suvr_stats_all.py -sd .../NWSI/suvr_link --pattern suvr_combined_cerebellum   # whole-cerebellum reference
+    python suvr_stats_all.py -o suvr_output        # uses /mnt/backup/dev/NWSI/suvr_link
+    python suvr_stats_all.py -ld /path/to/NWSI/suvr_link -o suvr_output
+    python suvr_stats_all.py -ld .../NWSI/suvr_link --pattern suvr_combined_cerebellum   # whole-cerebellum reference
 """
 import argparse
 from pathlib import Path
 
 import pandas as pd
+
+DEFAULT_LINK_DIR = "/mnt/backup/dev/NWSI/suvr_link"
 
 ID_COLS = ("subject_id", "pet_date", "pet_info", "mri_date", "mri_info")
 
@@ -33,9 +36,9 @@ def parse_combo(name: str) -> dict:
     """Parse a combo folder name into its parts.
 
     Handles the base form and an optional PET reconstruction token / MRI suffix:
-        320011_pet_20211014_mri_20211015
-        320056_pet_20240110_128_mri_20240111
-        110348_pet_9.Am2201_mri_20170811_CorMPRAGE
+        900011_pet_20211014_mri_20211015
+        900056_pet_20240110_128_mri_20240111
+        900348_pet_9.Am2201_mri_20170811_CorMPRAGE
     """
     out = {k: None for k in ID_COLS}
     if "_pet_" not in name or "_mri_" not in name:
@@ -81,10 +84,10 @@ def read_summary_csv(path: Path) -> pd.DataFrame:
         df = raw.iloc[2:].copy()
         df.columns = names
         df = df.reset_index(drop=True)
-        for c in df.columns:
-            if c != "PID":
-                df[c] = pd.to_numeric(df[c], errors="coerce")
-        return df
+        # Convert all ROI columns in one go (per-column assignment fragments the frame).
+        return pd.concat(
+            [df.iloc[:, :1], df.iloc[:, 1:].apply(pd.to_numeric, errors="coerce")], axis=1
+        )
     # single-header layout
     return pd.read_csv(path)
 
@@ -165,9 +168,9 @@ def aggregate(farm_dir: Path, pattern: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Aggregate SUVR results into per-pattern CSVs.")
-    parser.add_argument("-sd", "--suvr-dir", required=True,
+    parser.add_argument("-ld", "--link-dir", default=DEFAULT_LINK_DIR,
                         help="Flat SUVR symlink farm, as built by "
-                             "suvr_symlink.py (e.g. NWSI/suvr_link).")
+                             f"suvr_symlink.py (default: {DEFAULT_LINK_DIR}).")
     parser.add_argument("--pattern", default=None,
                         help="Aggregate only this single pattern instead of all 4 "
                              "(e.g. suvr_combined_cerebellum_gm).")
@@ -175,7 +178,7 @@ def main():
                         help="Directory to write the per-pattern CSVs (default: suvr_output).")
     args = parser.parse_args()
 
-    farm_dir = Path(args.suvr_dir).resolve()
+    farm_dir = Path(args.link_dir).resolve()
     if not farm_dir.is_dir():
         parser.error(
             f"Invalid SUVR farm directory: {farm_dir}\n"

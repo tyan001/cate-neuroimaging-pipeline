@@ -122,7 +122,7 @@ def parse_folder_name(folder_name, logger):
     # (\d{2})        - Group 4: Day (exactly 2 digits)  
     # (\d{4})        - Group 5: Year (exactly 4 digits)
     #
-    # Matches: MRI_110001-01_01022023 OR MRI_110001_01022023
+    # Matches: MRI_900001-01_01022023 OR MRI_900001_01022023
     pattern = r"MRI_(.*?)(?:-([A-Za-z0-9]+))?_(\d{2})(\d{2})(\d{4})"
     # pattern = r"MRI_(.*?)-([A-Za-z0-9]+)_(\d{2})(\d{2})(\d{4})"
     match = re.match(pattern, folder_name)

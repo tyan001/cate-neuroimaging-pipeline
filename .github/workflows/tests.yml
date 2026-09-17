@@ -31,11 +31,11 @@ jobs:
         run: >-
           uv run ruff check --output-format=github
           --select E4,E7,E9,F,I,B,UP --target-version py312 --line-length 120
-          --config "src = ['pipeline/1_ingest', 'pipeline/7_DirectoryStats', 'sync', 'tests', 'tests/fixtures']"
-          pipeline/1_ingest pipeline/7_DirectoryStats sync tests
+          --config "src = ['pipeline/1_ingest', 'pipeline/6_extract', 'pipeline/7_DirectoryStats', 'sync', 'tests', 'tests/fixtures']"
+          pipeline/1_ingest pipeline/6_extract pipeline/7_DirectoryStats sync tests
 
-  ingest:
-    name: 1_ingest (Python ${{ matrix.python-version }})
+  pytest:
+    name: pytest (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -56,8 +56,15 @@ jobs:
       - name: Run ingest tests
         run: uv run pytest tests/ingest tests/test_fixture_manifest.py -v
 
-      - name: Run missing-scan tests
+      # find_missing, process_missing, merge_batch (needs rsync, which ubuntu-latest has) and directory_data_count
+      - name: Run 7_DirectoryStats tests
         run: uv run pytest tests/missing -v
 
-      - name: Run merge tests
-        run: uv run pytest tests/sync -v
+      - name: Run QC tests
+        run: uv run pytest tests/qc -v
+
+      - name: Run aggregate tests
+        run: uv run pytest tests/aggregate -v
+
+      - name: Run extract tests
+        run: uv run pytest tests/extract -v

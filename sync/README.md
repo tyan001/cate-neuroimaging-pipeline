@@ -41,12 +41,14 @@ export ADRC_ROOT=/data/NWSI/ADRC
 
 ### merge_batch.py (checked merge, recommended)
 
+The script lives in `pipeline/7_DirectoryStats/` because it shares the scan checks in `inventory.py`.
+
 ```bash
-python3 merge_batch.py /data/Processing/Both/batch87/ADRC --dest /data/NWSI/ADRC            # plan
-python3 merge_batch.py /data/Processing/Both/batch87/ADRC --dest /data/NWSI/ADRC --execute  # copy
+python3 pipeline/7_DirectoryStats/merge_batch.py --source /data/Processing/Both/batch87/ADRC --dest /data/NWSI/ADRC            # plan
+python3 pipeline/7_DirectoryStats/merge_batch.py --source /data/Processing/Both/batch87/ADRC --dest /data/NWSI/ADRC --execute  # copy
 
 # or by batch number, with the same environment variables as the shell scripts
-ADRC_ROOT=/data/NWSI/ADRC PROCESSING_ROOT=/data/Processing python3 merge_batch.py 87 --execute
+ADRC_ROOT=/data/NWSI/ADRC PROCESSING_ROOT=/data/Processing python3 pipeline/7_DirectoryStats/merge_batch.py --source 87 --execute
 ```
 
 Without `--execute` it only prints the plan. The copy is the same append-only

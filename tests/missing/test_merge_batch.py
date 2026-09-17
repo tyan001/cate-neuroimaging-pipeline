@@ -1,4 +1,4 @@
-"""Tests for sync/merge_batch.py. Uses the real rsync on trees of small files."""
+"""Tests for pipeline/7_DirectoryStats/merge_batch.py. Uses the real rsync on trees of small files."""
 
 import os
 import shutil
@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-SYNC_DIR = Path(__file__).resolve().parents[2] / "sync"
-sys.path.insert(0, str(SYNC_DIR))
+STATS_DIR = Path(__file__).resolve().parents[2] / "pipeline" / "7_DirectoryStats"
+sys.path.insert(0, str(STATS_DIR))
 
 import merge_batch  # noqa: E402
 
@@ -111,7 +111,7 @@ def test_plan(trees):
 def test_dry_run_copies_nothing(trees, capsys):
     batch, main = trees
     before = files(main)
-    assert merge_batch.main([str(batch), "--dest", str(main)]) == 0
+    assert merge_batch.main(["--source", str(batch), "--dest", str(main)]) == 0
     assert files(main) == before
     out = capsys.readouterr().out
     assert "Dry run" in out and "recon_failed" in out
@@ -120,7 +120,7 @@ def test_dry_run_copies_nothing(trees, capsys):
 def test_execute(trees, capsys):
     batch, main = trees
     old_notes = (main / "900003/20200101/modalities/notes.json").read_text()
-    assert merge_batch.main([str(batch), "--dest", str(main), "--execute"]) == 0
+    assert merge_batch.main(["--source", str(batch), "--dest", str(main), "--execute"]) == 0
     assert "copied and verified" in capsys.readouterr().out
     got = set(files(main))
 
@@ -148,7 +148,7 @@ def test_execute(trees, capsys):
 
 def test_rerun_copies_nothing_new(trees):
     batch, main = trees
-    assert merge_batch.main([str(batch), "--dest", str(main), "--execute"]) == 0
+    assert merge_batch.main(["--source", str(batch), "--dest", str(main), "--execute"]) == 0
     plan = merge_batch.build_plan(batch, main)
     assert plan.copy == [] and plan.logs == []
 
@@ -168,7 +168,7 @@ def test_batch_number_and_env(trees, monkeypatch):
     shutil.move(batch.parent, processing / "Both" / "batch90")
     monkeypatch.setenv("PROCESSING_ROOT", str(processing))
     monkeypatch.setenv("ADRC_ROOT", str(main))
-    assert merge_batch.main(["90", "--execute"]) == 0
+    assert merge_batch.main(["--source", "90", "--execute"]) == 0
     assert (main / "900001/20240110/pet/900001-20240110_PET.nii").is_file()
 
 
@@ -176,4 +176,11 @@ def test_batch_number_and_env(trees, monkeypatch):
 def test_bad_destinations(trees, dest, capsys):
     batch, _ = trees
     target = {"same": batch, "inside": batch / "900001", "missing": batch.parent / "nope"}[dest]
-    assert merge_batch.main([str(batch), "--dest", str(target), "--execute"]) == 1
+    assert merge_batch.main(["--source", str(batch), "--dest", str(target), "--execute"]) == 1
+
+
+def test_source_is_required(capsys):
+    with pytest.raises(SystemExit) as exc:
+        merge_batch.main(["--dest", "/nonexistent"])
+    assert exc.value.code == 2
+    assert "--source" in capsys.readouterr().err

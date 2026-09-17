@@ -36,19 +36,19 @@ def test_parse_fixture_folder_names(folder, expected, logger):
 
 
 @pytest.mark.parametrize("folder, expected", [
-    ("MRI_110001_01022023", ("110001", "20230102")),      # session is optional for MRI
-    ("MRI_110001-01_01022023", ("110001", "20230102")),
-    ("MRI_320001-D1_12312025", ("320001", "20251231")),
+    ("MRI_900011_01022023", ("900011", "20230102")),      # session is optional for MRI
+    ("MRI_900011-01_01022023", ("900011", "20230102")),
+    ("MRI_900031-D1_12312025", ("900031", "20251231")),
 ])
 def test_parse_folder_name_variants(folder, expected, logger):
     assert mri.parse_folder_name(folder, logger) == expected
 
 
 @pytest.mark.parametrize("folder", [
-    "PET_110001-01_01022023",   # wrong modality
-    "110001-01_01022023",       # prefix missing (prefix.py not run)
-    "MRI_110001-01_2023",       # date too short
-    "MRI_110001-01",            # no date
+    "PET_900011-01_01022023",   # wrong modality
+    "900011-01_01022023",       # prefix missing (prefix.py not run)
+    "MRI_900011-01_2023",       # date too short
+    "MRI_900011-01",            # no date
     "notes",
 ])
 def test_parse_folder_name_rejects(folder, logger):
@@ -61,7 +61,7 @@ def test_parse_folder_name_rejects(folder, logger):
     ("720619-01_01312025.T1.nii", "T1"),
     ("720619-01_01312025.MB_DTI_AP.nii", "MB_DTI_AP"),
     ("720619-01_01312025.T2GRE_ph.nii", "T2GRE_ph"),
-    ("110001-01_01022023.Cor_MPRAGE.nii", "Cor_MPRAGE"),
+    ("900011-01_01022023.Cor_MPRAGE.nii", "Cor_MPRAGE"),
     ("20250131120000_720619-01_Sagittal_3D_FLAIR_(MSV22).nii", None),  # no ".<modality>." part
     ("720619-01_01312025.DTI1000.bval", None),
 ])
@@ -127,43 +127,43 @@ def test_rerun_is_idempotent(ingest_data, tmp_path, logger):
 
 def test_cor_mprage_fallback(make_tree, tmp_path, logger):
     src = make_tree("MRI", [
-        "MRI_110001-01_01022023/110001-01_01022023.Cor_MPRAGE.nii",
-        "MRI_110001-01_01022023/110001-01_01022023.T2.nii",
+        "MRI_900011-01_01022023/900011-01_01022023.Cor_MPRAGE.nii",
+        "MRI_900011-01_01022023/900011-01_01022023.T2.nii",
     ])
     mri.restructure_files(src, tmp_path / "out", logger)
-    anat = tmp_path / "out/ADRC/110001/20230102/anat"
-    assert [p.name for p in anat.iterdir()] == ["110001-20230102_CorMPRAGE.nii"]
+    anat = tmp_path / "out/ADRC/900011/20230102/anat"
+    assert [p.name for p in anat.iterdir()] == ["900011-20230102_CorMPRAGE.nii"]
 
 
 def test_t1_preferred_over_cor_mprage(make_tree, tmp_path, logger):
     src = make_tree("MRI", [
-        "MRI_110001-01_01022023/110001-01_01022023.Cor_MPRAGE.nii",
-        "MRI_110001-01_01022023/110001-01_01022023.T1.nii",
+        "MRI_900011-01_01022023/900011-01_01022023.Cor_MPRAGE.nii",
+        "MRI_900011-01_01022023/900011-01_01022023.T1.nii",
     ])
     mri.restructure_files(src, tmp_path / "out", logger)
-    anat = tmp_path / "out/ADRC/110001/20230102/anat"
-    assert [p.name for p in anat.iterdir()] == ["110001-20230102_T1w.nii"]
+    anat = tmp_path / "out/ADRC/900011/20230102/anat"
+    assert [p.name for p in anat.iterdir()] == ["900011-20230102_T1w.nii"]
 
 
 def test_no_anat_candidate_leaves_anat_empty(make_tree, tmp_path, logger, caplog):
-    src = make_tree("MRI", ["MRI_110001-01_01022023/110001-01_01022023.T2.nii"])
+    src = make_tree("MRI", ["MRI_900011-01_01022023/900011-01_01022023.T2.nii"])
     mri.restructure_files(src, tmp_path / "out", logger)
-    session = tmp_path / "out/ADRC/110001/20230102"
+    session = tmp_path / "out/ADRC/900011/20230102"
     assert list((session / "anat").iterdir()) == []
-    assert [p.name for p in (session / "modalities").iterdir()] == ["110001-01_01022023.T2.nii"]
-    assert "No T1 or Cor_MPRAGE file found for subject 110001" in caplog.text
+    assert [p.name for p in (session / "modalities").iterdir()] == ["900011-01_01022023.T2.nii"]
+    assert "No T1 or Cor_MPRAGE file found for subject 900011" in caplog.text
 
 
 def test_unparseable_and_non_mri_folders_skipped(make_tree, tmp_path, logger):
     src = make_tree("MRI", [
-        "MRI_110001-01_01022023/110001-01_01022023.T1.nii",
+        "MRI_900011-01_01022023/900011-01_01022023.T1.nii",
         "MRI_garbage/x.T1.nii",
-        "110002-01_01022023/110002-01_01022023.T1.nii",   # missing MRI_ prefix
+        "900012-01_01022023/900012-01_01022023.T1.nii",   # missing MRI_ prefix
         "stray_file.txt",
     ])
     subjects = mri.restructure_files(src, tmp_path / "out", logger)
-    assert list(subjects) == ["110001"]
-    assert [p.name for p in (tmp_path / "out/ADRC").iterdir()] == ["110001"]
+    assert list(subjects) == ["900011"]
+    assert [p.name for p in (tmp_path / "out/ADRC").iterdir()] == ["900011"]
 
 
 def test_empty_source_returns_empty(tmp_path, logger):
@@ -175,14 +175,14 @@ def test_empty_source_returns_empty(tmp_path, logger):
 @pytest.mark.xfail(strict=True, reason="T1 is latched per subject, not per session (see 1_ingest/README.md)")
 def test_multi_session_subject_gets_each_sessions_t1(make_tree, tmp_path, logger):
     src = make_tree("MRI", [
-        "MRI_110001-01_01022023/110001-01_01022023.T1.nii",
-        "MRI_110001-02_06152024/110001-02_06152024.T1.nii",
+        "MRI_900011-01_01022023/900011-01_01022023.T1.nii",
+        "MRI_900011-02_06152024/900011-02_06152024.T1.nii",
     ])
     mri.restructure_files(src, tmp_path / "out", logger)
-    adrc = tmp_path / "out/ADRC/110001"
-    for date, src_name in [("20230102", "MRI_110001-01_01022023/110001-01_01022023.T1.nii"),
-                           ("20240615", "MRI_110001-02_06152024/110001-02_06152024.T1.nii")]:
-        anat_file = adrc / date / "anat" / f"110001-{date}_T1w.nii"
+    adrc = tmp_path / "out/ADRC/900011"
+    for date, src_name in [("20230102", "MRI_900011-01_01022023/900011-01_01022023.T1.nii"),
+                           ("20240615", "MRI_900011-02_06152024/900011-02_06152024.T1.nii")]:
+        anat_file = adrc / date / "anat" / f"900011-{date}_T1w.nii"
         assert anat_file.is_file()
         assert anat_file.read_text() == src_name
 

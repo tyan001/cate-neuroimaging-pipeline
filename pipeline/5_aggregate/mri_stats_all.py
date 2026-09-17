@@ -26,7 +26,8 @@ no FreeSurfer tools needed for those two.
 
 Usage:
     source $FREESURFER_HOME/SetUpFreeSurfer.sh
-    python mri_stats_all.py -fd /path/to/NWSI/freesurfer_link -o mri_output
+    python mri_stats_all.py -o mri_output          # uses /mnt/backup/dev/NWSI/freesurfer_link
+    python mri_stats_all.py -ld /path/to/NWSI/freesurfer_link -o mri_output
 """
 import argparse
 import os
@@ -36,6 +37,8 @@ import tempfile
 from pathlib import Path
 
 import pandas as pd
+
+DEFAULT_LINK_DIR = "/mnt/backup/dev/NWSI/freesurfer_link"
 
 SUBJECT_RE = re.compile(r"^(?P<subject_id>[^-]+)-(?P<scan_date>\d{8})_(?P<scan_type>.+)$")
 
@@ -78,10 +81,10 @@ def run_table(cmd: str, cwd: Path, out_file: Path):
 
 def add_ids(df: pd.DataFrame) -> pd.DataFrame:
     """Prepend subject_id / scan_date / scan_type parsed from the subject name."""
-    parsed = df["subject"].str.extract(SUBJECT_RE)
-    df = df.copy()
-    for col in ("subject_id", "scan_date", "scan_type"):
-        df.insert(df.columns.get_loc("subject"), col, parsed[col])
+    parsed = df["subject"].str.extract(SUBJECT_RE)[["subject_id", "scan_date", "scan_type"]]
+    # Join all id columns at once (repeated df.insert fragments wide tables).
+    pos = df.columns.get_loc("subject")
+    df = pd.concat([df.iloc[:, :pos], parsed, df.iloc[:, pos:]], axis=1)
     return df.sort_values("subject").reset_index(drop=True)
 
 
@@ -126,14 +129,14 @@ def build_subfield_table(subject_paths, file_glob: str, label: str) -> pd.DataFr
 
 def main():
     parser = argparse.ArgumentParser(description="Aggregate FreeSurfer MRI stats into per-measure CSVs.")
-    parser.add_argument("-fd", "--farm-dir", required=True,
+    parser.add_argument("-ld", "--link-dir", default=DEFAULT_LINK_DIR,
                         help="Flat FreeSurfer symlink farm, as built by "
-                             "freesurfer_symlink.py (e.g. NWSI/freesurfer_link).")
+                             f"freesurfer_symlink.py (default: {DEFAULT_LINK_DIR}).")
     parser.add_argument("-o", "--output-dir", default="mri_output",
                         help="Directory to write the per-measure CSVs (default: mri_output).")
     args = parser.parse_args()
 
-    farm_dir = Path(args.farm_dir).resolve()
+    farm_dir = Path(args.link_dir).resolve()
     if not farm_dir.is_dir():
         parser.error(
             f"Invalid farm directory: {farm_dir}\n"

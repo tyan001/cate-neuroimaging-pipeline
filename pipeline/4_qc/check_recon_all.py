@@ -98,7 +98,7 @@ if __name__ == "__main__":
         This script assumes a specific directory structure:
         base_dir/subject_id/scan_date/freesurfer741/fs7_output/scripts/recon-all.error
         ex:
-            ADRC/110001/20250303101346/freesurfer741/subjID_fs7_output_folder/scripts/recon-all.error
+            ADRC/900001/20250303101346/freesurfer741/subjID_fs7_output_folder/scripts/recon-all.error
     Example:
         $ python check_error.py path/to/ADRC_FOLDER/
     """

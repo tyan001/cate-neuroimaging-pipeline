@@ -14,18 +14,18 @@ get it wrong and scripts silently find nothing.
 
 ```
 ADRC/
-├── 110001/                                  ← subject: bare 6-digit ID
+├── 900001/                                  ← subject: bare 6-digit ID
 │   │
 │   ├── 20200115/                            ← MRI session: bare YYYYMMDD
 │   │   ├── anat/
-│   │   │   └── 110001-20200115_T1w.nii
+│   │   │   └── 900001-20200115_T1w.nii
 │   │   ├── modalities/                      ← raw delivery, preserved verbatim
-│   │   │   ├── 110001-05_01152020.Cor_MPRAGE.nii
-│   │   │   ├── 110001-05_01152020.DTI1000.nii  + .bval + .bvec
-│   │   │   ├── 110001-05_01152020.T2FLAIR.nii
+│   │   │   ├── 900001-05_01152020.Cor_MPRAGE.nii
+│   │   │   ├── 900001-05_01152020.DTI1000.nii  + .bval + .bvec
+│   │   │   ├── 900001-05_01152020.T2FLAIR.nii
 │   │   │   └── *.json                       ← scanner sidecars, original names
 │   │   ├── freesurfer741/
-│   │   │   └── 110001-20200115_T1w/         ← a complete recon-all subject
+│   │   │   └── 900001-20200115_T1w/         ← a complete recon-all subject
 │   │   │       ├── mri/    T1.mgz, aparc+aseg.mgz, hippoAmygLabels-T1.v22.*
 │   │   │       ├── surf/   lh.pial, rh.white, ...
 │   │   │       ├── label/
@@ -39,22 +39,22 @@ ADRC/
 │   │
 │   ├── 20200310/                            ← PET session: its own date folder
 │   │   ├── pet/
-│   │   │   └── 110001-20200310_PET.nii
+│   │   │   └── 900001-20200310_PET.nii
 │   │   ├── ct/                              ← only when the delivery includes CT
-│   │   │   └── 110001-20200310_CT.nii
+│   │   │   └── 900001-20200310_CT.nii
 │   │   └── suvr/
 │   │       ├── logs/suvr_setup_20200310_<ts>.log
-│   │       └── 110001-20200310_PET/
+│   │       └── 900001-20200310_PET/
 │   │           ├── logs/pet_registration_<ts>.log
-│   │           └── 110001_pet_20200310_mri_20200115/
+│   │           └── 900001_pet_20200310_mri_20200115/
 │   │               ├── MRI/            T1, aparc+aseg, PET, 3 volume CSVs
 │   │               ├── register_scan/  *_reg_*.nii + .mat
 │   │               └── res/            SUVR + Centiloid CSVs
 │   │
 │   └── logs/
-│       └── pet_suvr_processing_110001_<ts>.log
+│       └── pet_suvr_processing_900001_<ts>.log
 │
-├── 110002/
+├── 900002/
 ├── ...
 └── logs/                                    ← batch-level, siblings of the subjects
     ├── mri_bids_logs/    pet_bids_logs/
@@ -67,8 +67,9 @@ ADRC/
 
 ## Rules
 
-**1. Subjects are bare IDs.** Six digits, no prefix. Our site codes: `110`/`120` = Mt Sinai,
-`220` = second site, `320` = UF grant.
+**1. Subjects are bare IDs.** Six digits, no prefix. The first three digits are the site code
+(`110`, `120`, `220`, `320`). Every example in this repo uses a `9xxxxx` ID, a range no real
+subject uses.
 
 **2. Sessions are bare dates.** `YYYYMMDD`. No time component, no `ses-`. Each subject has exactly
 one non-date child: `logs/`.
@@ -98,7 +99,7 @@ DTI, FLAIR, SWI, resting-state, and their original JSON/bval/bvec sidecars. Note
 scanner series descriptions rather than matching the NIfTI names, so they are *not* usable as BIDS
 sidecars.
 
-**8. The FreeSurfer subject ID is the anat filename stem.** `110001-20200115_T1w` — subject and date
+**8. The FreeSurfer subject ID is the anat filename stem.** `900001-20200115_T1w` — subject and date
 embedded, hence globally unique. There is **no central `SUBJECTS_DIR`**; recons are scattered one per
 session. `pipeline/5_aggregate/freesurfer_symlink.py` builds a persistent flat symlink farm precisely to
 work around this — one symlink per recon, pointing back at the real nested directory — which
@@ -176,8 +177,8 @@ to rerun any time, only adds symlinks for new subjects/scans):
 python3 pipeline/5_aggregate/freesurfer_symlink.py --source /path/to/ADRC --target /path/to/NWSI/freesurfer_link
 python3 pipeline/5_aggregate/suvr_symlink.py       --source /path/to/ADRC --target /path/to/NWSI/suvr_link
 
-python3 pipeline/5_aggregate/mri_stats_all.py  -fd /path/to/NWSI/freesurfer_link -o mri_output
-python3 pipeline/5_aggregate/suvr_stats_all.py -sd /path/to/NWSI/suvr_link       -o suvr_output
+python3 pipeline/5_aggregate/mri_stats_all.py  -ld /path/to/NWSI/freesurfer_link -o mri_output
+python3 pipeline/5_aggregate/suvr_stats_all.py -ld /path/to/NWSI/suvr_link       -o suvr_output
 
 # progress check: folders in ADRC/ against entries in the two farms
 python3 pipeline/7_DirectoryStats/directory_data_count.py -i /path/to/NWSI
@@ -200,29 +201,25 @@ the directory structure *is* the index.
 
 ---
 
-## Reading data back out
+## Finding and viewing scans
 
-To pull specific scans given a list of subject IDs and dates, use
+To find and inspect specific scans by subject ID and date, use
 [`pipeline/6_extract/`](../pipeline/6_extract/):
 
 ```bash
 export ADRC_ROOT=/data/NWSI/ADRC
 
-# one scan
-python3 pipeline/6_extract/scan_finder.py -f "$ADRC_ROOT" -p 110001 -d 01/15/2020 -t T1w
+# browse and view any volume in a browser (over SSH: ssh -L 8765:localhost:8765 you@server)
+python3 pipeline/6_extract/viewer.py
 
-# what sessions exist for a subject?
-python3 pipeline/6_extract/scan_finder.py -f "$ADRC_ROOT" -p 110001 --list-dates
+# what sessions exist for a subject, and which scans are in each?
+python3 pipeline/6_extract/scans.py 900001
 
-# bulk copy from a CSV of PID,Date
-python3 pipeline/6_extract/batch_copy_scans.py \
-    -i examples/scan_list.csv -s "$ADRC_ROOT" -d /tmp/pull -t t1w \
-    --preserve-structure -r report.csv
+# one scan's path
+python3 pipeline/6_extract/scans.py 900001 01/15/2020 -t t1w
 ```
 
-Dates are entered as `MM/DD/YYYY` and converted to `YYYYMMDD` internally. `-r` writes a per-row
-status report (`copied` / `not_found` / `copy_failed` / `error`) — always check it, since a missing
-scan is reported rather than raised.
+Dates may be `MM/DD/YYYY`, `YYYY-MM-DD` or `YYYYMMDD`.
 
 ---
 

@@ -29,7 +29,7 @@ import sys
         asegstats2table --subjects $(ls $SUBJECTS_DIR) -t all_aseg.csv
 
     Subject/session leaf directories are named "<subject>-<session>_<seq>",
-    e.g. "110004-20090603_T1w" or "110014-20200312_CorMPRAGE" -- both
+    e.g. "900004-20090603_T1w" or "900014-20200312_CorMPRAGE" -- both
     sequence naming conventions found in the data are included by default
     since the match is by directory position, not by suffix.
 

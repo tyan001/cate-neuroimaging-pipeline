@@ -14,7 +14,7 @@ Typical order after a batch is synced: `prune_suvr_registrations.py` → `freesu
 | `suvr_symlink.py` | flat SUVR symlink farm | one PET output folder | stdlib |
 | `mri_stats_all.py` | 6 per-measure CSVs | one recon MRI subject | FreeSurfer on PATH, FreeSurfer symlink farm |
 | `suvr_stats_all.py` | one CSV per pattern (4 total) | one PET–MRI pair | pandas only, SUVR symlink farm |
-| `mri_site_data.py` | `sitedata_mri/` per session | — | FreeSurfer on PATH |
+| `mri_site_data.py` | `sitedata_mri/` per session | — | FreeSurfer on PATH, FreeSurfer symlink farm |
 | `directory_data_count.py` | printed counts of `anat`/`ct`/`pet`/`modalities` folders and farm entries | — | stdlib |
 | `ConcatenateSubregionsResults` | concatenated `.stats` across subjects | one subject | FreeSurfer (vendored utility) |
 
@@ -112,7 +112,7 @@ pointed to was moved or deleted. Rebuild the farm with `--force` or remove the l
 
 ```bash
 source $FREESURFER_HOME/SetUpFreeSurfer.sh
-python3 mri_stats_all.py -fd /path/to/NWSI/freesurfer_link -o mri_output
+python3 mri_stats_all.py -ld /path/to/NWSI/freesurfer_link -o mri_output   # -ld defaults to /mnt/backup/dev/NWSI/freesurfer_link
 ```
 
 1. Lists every entry in the flat FreeSurfer symlink farm (skipping any without a `stats/` dir) —
@@ -144,8 +144,8 @@ works even without `quantifyHippocampalSubfields.sh` installed. Subjects lacking
 ## suvr_stats_all.py
 
 ```bash
-python3 suvr_stats_all.py -sd /path/to/NWSI/suvr_link -o suvr_output         # all four
-python3 suvr_stats_all.py -sd /path/to/NWSI/suvr_link -o suvr_output \
+python3 suvr_stats_all.py -ld /path/to/NWSI/suvr_link -o suvr_output         # all four (-ld defaults to /mnt/backup/dev/NWSI/suvr_link)
+python3 suvr_stats_all.py -ld /path/to/NWSI/suvr_link -o suvr_output \
         --pattern suvr_combined_cerebellum                                   # just one
 ```
 
@@ -171,9 +171,9 @@ Pair identifiers are parsed from the combo folder name by splitting on `_pet_` /
 
 | Folder name | subject_id | pet_date | pet_info | mri_date | mri_info |
 |---|---|---|---|---|---|
-| `110001_pet_20200310_mri_20200115` | 110001 | 20200310 | — | 20200115 | — |
-| `110001_pet_20200310_128_mri_20200115` | 110001 | 20200310 | 128 | 20200115 | — |
-| `110002_pet_20200310_mri_20200115_CorMPRAGE` | 110002 | 20200310 | — | 20200115 | CorMPRAGE |
+| `900001_pet_20200310_mri_20200115` | 900001 | 20200310 | — | 20200115 | — |
+| `900001_pet_20200310_128_mri_20200115` | 900001 | 20200310 | 128 | 20200115 | — |
+| `900002_pet_20200310_mri_20200115_CorMPRAGE` | 900002 | 20200310 | — | 20200115 | CorMPRAGE |
 
 Output columns: `subject_id, pet_date, pet_info, mri_date, mri_info`, then the original
 `PID, Compound, Centiloid, <ROI SUVRs...>`.
@@ -184,12 +184,14 @@ session names show up here.
 ## mri_site_data.py
 
 ```bash
-python3 mri_site_data.py /path/to/ADRC --cores 4 [--force]
+python3 mri_site_data.py /path/to/NWSI/freesurfer_link --cores 4 [--force]
+# path defaults to /mnt/backup/dev/NWSI/freesurfer_link; a single recon (or its farm link) also works
 ```
 
 Builds the shareable derivative of each recon: `mri/{T1,brain,wm,aparc+aseg}.mgz` → NIfTI and
 `surf/{lh,rh}.{pial,white}` → GIFTI, written to each session's `sitedata_mri/`. Uses `mri_convert`
-and `mris_convert`. Logs to `<path>/conversion_logs/`.
+and `mris_convert`. Output still goes next to the real `freesurfer741/` (each link is resolved). Logs go to
+`conversion_logs/` beside the farm (e.g. `NWSI/conversion_logs/`), not inside it.
 
 Regenerable at any time from the recon, so it is the first thing to delete if space is tight.
 

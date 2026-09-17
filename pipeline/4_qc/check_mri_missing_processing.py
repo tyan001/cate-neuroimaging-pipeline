@@ -92,12 +92,12 @@ def check_incomplete_processing(adrc_dir):
     4. Missing or incomplete hippocampal processing (checks for "Everything done!" in log)
 
     📦ADRC
-    ┣ 📂110001
+    ┣ 📂900001
     ┃ ┗ 📂20200115101346
     ┃ ┃ ┣ 📂anat <--- [1] Check this first
-    ┃ ┃ ┃ ┗ 📜110001-20200115_T1w.nii
+    ┃ ┃ ┃ ┗ 📜900001-20200115_T1w.nii
     ┃ ┃ ┗ 📂freesurfer741 <--- [2] Only check if anat exists
-    ┃ ┃ ┃ ┣ 📂110001-20200115_T1w
+    ┃ ┃ ┃ ┣ 📂900001-20200115_T1w
     ┃ ┃ ┃ ┃ ┗ 📜scripts
     ┃ ┃ ┃ ┃   ┗ 📜recon-all.error <--- [3]
     ┃ ┃ ┃ ┃   ┗ 📜hippocampal-subfields-T1.log <--- [4]

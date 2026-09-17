@@ -1,11 +1,11 @@
 # Python dependencies for the CATE neuroimaging pipeline.
 # Everything else the scripts import is in the standard library.
 #
-#   nibabel  — read registered PET and aparc+aseg NIfTI volumes (pipeline/3_suvr/suvr.py,
-#              pipeline/4_qc/check_mprage.py)
-#   numpy    — per-ROI voxel statistics (pipeline/3_suvr/suvr.py)
+#   nibabel  — read NIfTI/MGH volumes (pipeline/3_suvr/suvr.py, pipeline/4_qc/check_mprage.py,
+#              pipeline/6_extract/viewer.py)
+#   numpy    — per-ROI voxel statistics (pipeline/3_suvr/suvr.py), viewer volumes (pipeline/6_extract)
 #   pandas   — volume tables, SUVR result CSVs, study-level aggregation (pipeline/3_suvr,
-#              pipeline/5_aggregate, pipeline/6_extract/batch_copy_scans.py)
+#              pipeline/5_aggregate)
 #   tqdm     — progress bars for the parallel SUVR stages
 #
 # Version floors, not pins: any recent release works. Tested on Python 3.12.

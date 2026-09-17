@@ -13,6 +13,8 @@ import queue
 import threading
 import traceback
 
+DEFAULT_LINK_DIR = "/mnt/backup/dev/NWSI/freesurfer_link"
+
 def check_freesurfer():
     """Check if FreeSurfer is properly initialized."""
     if not os.environ.get('FREESURFER_HOME'):
@@ -171,6 +173,8 @@ def log_writer(log_queue, log_file):
 
 def process_specific_subject(subject_path, output_folder_name, force_reconversion, log_queue):
     """Process a single specific subject."""
+    # Follow a farm symlink to the real recon so the output lands next to its freesurfer741
+    subject_path = os.path.realpath(subject_path)
     # Check if the path is actually a subject directory within freesurfer741
     subject_name = os.path.basename(subject_path)
     parent_dir = os.path.dirname(subject_path)
@@ -195,14 +199,16 @@ def process_specific_subject(subject_path, output_folder_name, force_reconversio
 
 def main():
     parser = argparse.ArgumentParser(description='Convert FreeSurfer files to NIfTI and GIFTI formats')
-    parser.add_argument('path', help='Path to the ADRC directory or a specific subject directory')
+    parser.add_argument('path', nargs='?', default=DEFAULT_LINK_DIR,
+                        help='Flat FreeSurfer symlink farm as built by freesurfer_symlink.py, '
+                             f'or a specific subject directory / farm link (default: {DEFAULT_LINK_DIR})')
     parser.add_argument('--output_name', help='Name of the output folder (sibling to freesurfer741)', default='sitedata_mri')
     parser.add_argument('--cores', type=int, help='Number of parallel processes to use', default=1)
     parser.add_argument('--force', action='store_true', help='Force reconversion even if output files already exist')
     
     args = parser.parse_args()
     
-    input_path = args.path
+    input_path = os.path.abspath(args.path.rstrip('/'))
     output_folder_name = args.output_name
     num_processes = args.cores or max(1, multiprocessing.cpu_count() - 1)  # Default: Use all cores except one
     force_reconversion = args.force
@@ -213,16 +219,19 @@ def main():
     
     # Determine if this is a specific subject or a general ADRC path
     is_specific_subject = False
-    if os.path.basename(os.path.dirname(input_path)) == "freesurfer741":
+    if os.path.basename(os.path.dirname(os.path.realpath(input_path))) == "freesurfer741":
         is_specific_subject = True
+    elif not os.path.isdir(input_path):
+        print(f"ERROR: {input_path} is not a directory")
+        sys.exit(1)
     
     # Set up log directory
     if is_specific_subject:
-        # For a specific subject, place logs in the grandparent directory
-        base_log_dir = os.path.join(os.path.dirname(os.path.dirname(input_path)), "conversion_logs")
+        # For a specific subject, place logs in the session directory (grandparent of the real recon)
+        base_log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(input_path))), "conversion_logs")
     else:
-        # For ADRC path, place logs in the ADRC directory
-        base_log_dir = os.path.join(input_path, "conversion_logs")
+        # For the farm, place logs beside it (not inside, so the farm stays links-only)
+        base_log_dir = os.path.join(os.path.dirname(input_path), "conversion_logs")
     
     os.makedirs(base_log_dir, exist_ok=True)
     
@@ -255,7 +264,7 @@ def main():
         result = process_specific_subject(input_path, output_folder_name, force_reconversion, log_queue)
         results = [result]
     else:
-        log_queue.put(f"Scanning for all subjects in ADRC path")
+        log_queue.put(f"Scanning for all subjects in symlink farm")
         log_queue.put(f"Using {num_processes} parallel processes")
         log_queue.put(f"Force reconversion: {force_reconversion}")
         log_queue.put("")
@@ -263,18 +272,23 @@ def main():
         # Collect all subjects to process
         all_subjects = []
         
-        for root, dirs, _ in os.walk(input_path):
-            if "freesurfer741" in dirs:
-                fs_dir = os.path.join(root, "freesurfer741")
-                
-                # Create output directory as sibling to freesurfer741
-                parent_dir = os.path.dirname(fs_dir)
-                output_path = os.path.join(parent_dir, output_folder_name)
-                os.makedirs(output_path, exist_ok=True)
-                
-                # Get subject directories
-                for subject_dir in [d for d in os.listdir(fs_dir) if os.path.isdir(os.path.join(fs_dir, d))]:
-                    all_subjects.append((fs_dir, subject_dir, output_path))
+        # Each farm entry is a symlink to <root>/<subjid>/<session>/freesurfer741/<recon>;
+        # resolve it so the output folder is still created as a sibling to freesurfer741.
+        for entry in sorted(os.listdir(input_path)):
+            link_path = os.path.join(input_path, entry)
+            if not os.path.isdir(link_path):
+                log_queue.put(f"  WARNING: skipping {entry} (broken symlink or not a directory)")
+                continue
+            real_path = os.path.realpath(link_path)
+            fs_dir = os.path.dirname(real_path)
+            if os.path.basename(fs_dir) != "freesurfer741":
+                log_queue.put(f"  WARNING: skipping {entry} ({real_path} is not inside a freesurfer741 directory)")
+                continue
+            
+            # Create output directory as sibling to freesurfer741
+            output_path = os.path.join(os.path.dirname(fs_dir), output_folder_name)
+            os.makedirs(output_path, exist_ok=True)
+            all_subjects.append((fs_dir, os.path.basename(real_path), output_path))
         
         log_queue.put(f"Found {len(all_subjects)} subjects to process")
         

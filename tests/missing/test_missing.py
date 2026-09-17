@@ -154,7 +154,7 @@ def test_subject_filter(adrc):
 
 def test_find_missing_csv(adrc, tmp_path, capsys):
     out = tmp_path / "report" / "missing.csv"
-    assert find_missing.main([str(adrc), "--csv", str(out)]) == 0
+    assert find_missing.main(["--root", str(adrc), "--csv", str(out)]) == 0
     lines = out.read_text().splitlines()
     assert lines[0] == ",".join(find_missing.CSV_FIELDS)
     assert len(lines) == 1 + 11 + 9
@@ -241,3 +241,18 @@ def test_run_suvr_only_touches_selected_pairs(adrc, monkeypatch):
     done = ["900003_pet_20230105_256_mri_20230101", "900006_pet_20240501_mri_20240601"]
     assert sorted(register.seen) == done  # the failed prepare is not carried forward
     assert sorted(quantify.seen) == done
+
+
+def test_find_missing_root_from_env(adrc, monkeypatch, capsys):
+    monkeypatch.setenv("ADRC_ROOT", str(adrc))
+    assert find_missing.main(["--subject", "900004"]) == 0
+    assert f"Root: {adrc}" in capsys.readouterr().out
+
+
+def test_find_missing_needs_root(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("ADRC_ROOT", raising=False)
+    with pytest.raises(SystemExit) as exc:
+        find_missing.main([])
+    assert exc.value.code == 2
+    assert "--root is required" in capsys.readouterr().err
+    assert find_missing.main(["--root", str(tmp_path / "nope")]) == 1

@@ -14,7 +14,7 @@ import sys
 
         <ADRC_ROOT>/<subject>/<session>/suvr/<subject>-<session>_PET[...]/
 
-    e.g. NWSI/ADRC/110004/20150527/suvr/110004-20150527_PET
+    e.g. NWSI/ADRC/900004/20150527/suvr/900004-20150527_PET
 
     alongside a sibling "logs/" folder. That nested layout is what
     prepare_suvr_folder.py and friends expect. This script does NOT move
@@ -41,7 +41,7 @@ import sys
     Each PET output directory itself contains one subfolder per MRI
     registration target, e.g.
 
-        110004-20150527_PET/110004_pet_20150527_mri_20170215/res/*.csv
+        900004-20150527_PET/900004_pet_20150527_mri_20170215/res/*.csv
 
     because a single PET scan can be registered against more than one
     FreeSurfer MRI session. This script symlinks at the "<subject>-

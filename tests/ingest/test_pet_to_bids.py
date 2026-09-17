@@ -47,10 +47,10 @@ def test_parse_fixture_folder_names(folder, expected, logger):
 
 
 @pytest.mark.parametrize("folder", [
-    "PET_110001_01022023",      # PET requires a session, unlike MRI
-    "MRI_110001-01_01022023",
-    "110001-01_01022023",
-    "PET_110001-01_2023",
+    "PET_900011_01022023",      # PET requires a session, unlike MRI
+    "MRI_900011-01_01022023",
+    "900011-01_01022023",
+    "PET_900011-01_2023",
 ])
 def test_parse_folder_name_rejects(folder, logger):
     assert pet.parse_folder_name(folder, logger) is None
@@ -67,9 +67,9 @@ def test_parse_folder_name_rejects(folder, logger):
     ("x_PET_CT.nii", False, True),
     ("x_mean_UF_PROTOCOL_5mmblur.nii", False, False),
     ("x_PET_BRAIN_AC.nii", False, False),
-    ("220146-02_10142025.Amyloid_PET_128a.nii", True, False),   # batch87
+    ("900021-02_10142025.Amyloid_PET_128a.nii", True, False),   # batch87
     ("x.Amyloid_PET_128.nii", True, False),
-    ("220195-01_01012024.Amyloid_CT.nii", False, True),         # batch87
+    ("900022-01_01012024.Amyloid_CT.nii", False, True),         # batch87
     ("x.T1.nii", False, False),
 ])
 def test_classifiers(filename, is_pet, is_ct, logger):
@@ -156,65 +156,65 @@ def test_mri_and_pet_share_one_adrc_tree(ingest_data, tmp_path, logger):
 
 def test_nii_gz_is_ignored(make_tree, tmp_path, logger):
     src = make_tree("PET", [
-        "PET_320001-C1_01022023/320001-C1_01022023_aPET_mean_3mmblur_T1_space.nii.gz",
-        "PET_320001-C1_01022023/320001-C1_01022023.Amyloid_PET_CT.nii",
+        "PET_900031-C1_01022023/900031-C1_01022023_aPET_mean_3mmblur_T1_space.nii.gz",
+        "PET_900031-C1_01022023/900031-C1_01022023.Amyloid_PET_CT.nii",
     ])
     pet.restructure_files(src, tmp_path / "out", logger)
-    session = tmp_path / "out/ADRC/320001/20230102"
+    session = tmp_path / "out/ADRC/900031/20230102"
     assert list((session / "pet").iterdir()) == []
-    assert [p.name for p in (session / "ct").iterdir()] == ["320001-20230102_CT.nii"]
+    assert [p.name for p in (session / "ct").iterdir()] == ["900031-20230102_CT.nii"]
 
 
 def test_no_matches_leaves_empty_dirs(make_tree, tmp_path, logger, caplog):
-    src = make_tree("PET", ["PET_320001-C1_01022023/320001-C1_01022023_PET_BRAIN_AC.nii"])
+    src = make_tree("PET", ["PET_900031-C1_01022023/900031-C1_01022023_PET_BRAIN_AC.nii"])
     pet.restructure_files(src, tmp_path / "out", logger)
-    session = tmp_path / "out/ADRC/320001/20230102"
+    session = tmp_path / "out/ADRC/900031/20230102"
     assert list((session / "pet").iterdir()) == []
     assert list((session / "ct").iterdir()) == []
-    assert "No PET file found for subject 320001" in caplog.text
-    assert "No CT file found for subject 320001" in caplog.text
+    assert "No PET file found for subject 900031" in caplog.text
+    assert "No CT file found for subject 900031" in caplog.text
 
 
 def test_unparseable_and_non_pet_folders_skipped(make_tree, tmp_path, logger):
     src = make_tree("PET", [
-        "PET_320001-C1_01022023/320001-C1_01022023.Amyloid_PET_256.nii",
-        "PET_320002_01022023/320002_01022023.Amyloid_PET_256.nii",   # no session
-        "MRI_320003-C1_01022023/320003-C1_01022023.T1.nii",
+        "PET_900031-C1_01022023/900031-C1_01022023.Amyloid_PET_256.nii",
+        "PET_900032_01022023/900032_01022023.Amyloid_PET_256.nii",   # no session
+        "MRI_900033-C1_01022023/900033-C1_01022023.T1.nii",
     ])
     subjects = pet.restructure_files(src, tmp_path / "out", logger)
-    assert list(subjects) == ["320001"]
+    assert list(subjects) == ["900031"]
 
 
 def test_batch87_names(make_tree, tmp_path, logger):
     """PET_128a and Amyloid_CT deliveries (batch87) were skipped before these patterns existed."""
     src = make_tree("PET", [
-        "PET_220195-01_01012024/220195-01_01012024.Amyloid_CT.json",
-        "PET_220195-01_01012024/220195-01_01012024.Amyloid_CT.nii",
-        "PET_220195-01_01012024/220195-01_01012024.Amyloid_PET_128a.json",
-        "PET_220195-01_01012024/220195-01_01012024.Amyloid_PET_128a.nii",
+        "PET_900022-01_01012024/900022-01_01012024.Amyloid_CT.json",
+        "PET_900022-01_01012024/900022-01_01012024.Amyloid_CT.nii",
+        "PET_900022-01_01012024/900022-01_01012024.Amyloid_PET_128a.json",
+        "PET_900022-01_01012024/900022-01_01012024.Amyloid_PET_128a.nii",
     ])
     pet.restructure_files(src, tmp_path / "out", logger)
-    session = tmp_path / "out/ADRC/220195/20240101"
-    assert (session / "pet/220195-20240101_PET.nii").read_text() == \
-        "PET_220195-01_01012024/220195-01_01012024.Amyloid_PET_128a.nii"
-    assert (session / "ct/220195-20240101_CT.nii").read_text() == \
-        "PET_220195-01_01012024/220195-01_01012024.Amyloid_CT.nii"
+    session = tmp_path / "out/ADRC/900022/20240101"
+    assert (session / "pet/900022-20240101_PET.nii").read_text() == \
+        "PET_900022-01_01012024/900022-01_01012024.Amyloid_PET_128a.nii"
+    assert (session / "ct/900022-20240101_CT.nii").read_text() == \
+        "PET_900022-01_01012024/900022-01_01012024.Amyloid_CT.nii"
 
 
 def test_extra_patterns_and_miss_warning(make_tree, tmp_path, logger, caplog):
-    src = make_tree("PET", ["PET_320001-C1_01022023/320001-C1_01022023.Amyloid_PET_200.nii"])
+    src = make_tree("PET", ["PET_900031-C1_01022023/900031-C1_01022023.Amyloid_PET_200.nii"])
     pet.restructure_files(src, tmp_path / "a", logger)
-    assert "320001-C1_01022023.Amyloid_PET_200.nii" in caplog.text   # listed in the miss warning
+    assert "900031-C1_01022023.Amyloid_PET_200.nii" in caplog.text   # listed in the miss warning
     assert "--pet-pattern" in caplog.text
 
     pet.restructure_files(src, tmp_path / "b", logger, pet_patterns=pet.PET_PATTERNS + ["PET_200"])
-    assert (tmp_path / "b/ADRC/320001/20230102/pet/320001-20230102_PET.nii").is_file()
+    assert (tmp_path / "b/ADRC/900031/20230102/pet/900031-20230102_PET.nii").is_file()
 
 
 def test_cli_pattern_flags(make_tree, tmp_path):
     src = make_tree("PET", [
-        "PET_320001-C1_01022023/320001-C1_01022023.Amyloid_PET_200.nii",
-        "PET_320001-C1_01022023/320001-C1_01022023.CT_Brain.nii",
+        "PET_900031-C1_01022023/900031-C1_01022023.Amyloid_PET_200.nii",
+        "PET_900031-C1_01022023/900031-C1_01022023.CT_Brain.nii",
     ])
     result = subprocess.run(
         [sys.executable, str(SCRIPT), str(src), "--target_dir", str(tmp_path / "out"),
@@ -222,9 +222,9 @@ def test_cli_pattern_flags(make_tree, tmp_path):
         capture_output=True, text=True,
     )
     assert result.returncode == 0, result.stderr
-    session = tmp_path / "out/ADRC/320001/20230102"
-    assert [p.name for p in (session / "pet").iterdir()] == ["320001-20230102_PET.nii"]
-    assert [p.name for p in (session / "ct").iterdir()] == ["320001-20230102_CT.nii"]
+    session = tmp_path / "out/ADRC/900031/20230102"
+    assert [p.name for p in (session / "pet").iterdir()] == ["900031-20230102_PET.nii"]
+    assert [p.name for p in (session / "ct").iterdir()] == ["900031-20230102_CT.nii"]
 
 
 def test_empty_source_returns_empty(tmp_path, logger):
@@ -235,14 +235,14 @@ def test_empty_source_returns_empty(tmp_path, logger):
 @pytest.mark.xfail(strict=True, reason="PET/CT are latched per subject, not per session")
 def test_multi_session_subject_gets_each_sessions_pet(make_tree, tmp_path, logger):
     src = make_tree("PET", [
-        "PET_320001-C1_01022023/320001-C1_01022023.Amyloid_PET_256.nii",
-        "PET_320001-C2_06152024/320001-C2_06152024.Amyloid_PET_256.nii",
+        "PET_900031-C1_01022023/900031-C1_01022023.Amyloid_PET_256.nii",
+        "PET_900031-C2_06152024/900031-C2_06152024.Amyloid_PET_256.nii",
     ])
     pet.restructure_files(src, tmp_path / "out", logger)
-    adrc = tmp_path / "out/ADRC/320001"
-    for date, src_name in [("20230102", "PET_320001-C1_01022023/320001-C1_01022023.Amyloid_PET_256.nii"),
-                           ("20240615", "PET_320001-C2_06152024/320001-C2_06152024.Amyloid_PET_256.nii")]:
-        pet_file = adrc / date / "pet" / f"320001-{date}_PET.nii"
+    adrc = tmp_path / "out/ADRC/900031"
+    for date, src_name in [("20230102", "PET_900031-C1_01022023/900031-C1_01022023.Amyloid_PET_256.nii"),
+                           ("20240615", "PET_900031-C2_06152024/900031-C2_06152024.Amyloid_PET_256.nii")]:
+        pet_file = adrc / date / "pet" / f"900031-{date}_PET.nii"
         assert pet_file.is_file()
         assert pet_file.read_text() == src_name
 

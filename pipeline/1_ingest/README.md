@@ -44,7 +44,7 @@ python3 prefix.py /path/to/folders --prefix MRI_ [--dry-run]
 ```
 
 Renames immediate subfolders, skipping any already prefixed — safe to re-run. `--prefix` defaults to
-`MRI_`. Needed for sites that deliver without the modality prefix (for us, the `320` UF subjects).
+`MRI_`. Needed for sites that deliver without the modality prefix (one of our sites does).
 
 ## dropbox_mri_to_bids.py
 

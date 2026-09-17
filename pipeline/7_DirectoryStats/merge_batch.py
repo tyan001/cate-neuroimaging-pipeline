@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Merge a processed batch ADRC folder into the main ADRC folder, append-only.
 
-    python3 merge_batch.py /data/Processing/Both/batch87/ADRC --dest /data/NWSI/ADRC            # plan only
-    python3 merge_batch.py /data/Processing/Both/batch87/ADRC --dest /data/NWSI/ADRC --execute  # copy
+    python3 merge_batch.py --source /data/Processing/Both/batch87/ADRC --dest /data/NWSI/ADRC            # plan only
+    python3 merge_batch.py --source /data/Processing/Both/batch87/ADRC --dest /data/NWSI/ADRC --execute  # copy
 
-    ADRC_ROOT=/data/NWSI/ADRC PROCESSING_ROOT=/data/Processing python3 merge_batch.py 87 --execute
+    ADRC_ROOT=/data/NWSI/ADRC PROCESSING_ROOT=/data/Processing python3 merge_batch.py --source 87 --execute
 
 Nothing is copied without --execute. Like the sync_*.sh scripts it never overwrites a file in the
 main folder (rsync --ignore-existing --copy-links), but it checks the batch first:
@@ -40,8 +40,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO / "pipeline" / "7_DirectoryStats"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from inventory import (  # noqa: E402
     FREESURFER_DIRNAME,
@@ -266,7 +265,7 @@ class Tee:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--source", help="Batch ADRC folder, or a batch number ($PROCESSING_ROOT/Both/batch<N>/ADRC)")
+    parser.add_argument("--source", required=True, help="Batch ADRC folder, or a batch number ($PROCESSING_ROOT/Both/batch<N>/ADRC)")
     parser.add_argument("--dest", type=Path, default=os.environ.get("ADRC_ROOT"),
                         help="Main ADRC folder (default: $ADRC_ROOT)")
     parser.add_argument("--execute", action="store_true", help="Copy. Without it, only the plan is printed.")

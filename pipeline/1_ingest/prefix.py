@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Bulk-add a modality prefix (e.g. 'MRI_', 'PET_') to immediate subfolder names. Needed
-for sites that deliver without the modality prefix (for us, the 320 UF subjects).
+for sites that deliver without the modality prefix (one of our sites does).
 Skips any subfolder that already has the prefix, so it's safe to re-run.
 
 Usage:

@@ -5,26 +5,26 @@ NOTE: this is NOT BIDS. Subjects and sessions are bare IDs/dates with no
 sub-/ses- prefixes, and derivatives nest inside sessions.
 
 ADRC/
-├── 110001/                                       subject: bare 6-digit ID
+├── 900001/                                       subject: bare 6-digit ID
 │   │
 │   ├── 20200115/                                 MRI SESSION: bare YYYYMMDD
 │   │   ├── anat/
-│   │   │   └── 110001-20200115_T1w.nii           <subjid>-<date>_<SUFFIX>.nii
+│   │   │   └── 900001-20200115_T1w.nii           <subjid>-<date>_<SUFFIX>.nii
 │   │   │                                         (_CorMPRAGE when no T1 exists)
 │   │   ├── modalities/                           raw delivery, preserved verbatim
-│   │   │   ├── 110001-01_01152020.Cor_MPRAGE.nii
-│   │   │   ├── 110001-01_01152020.DTI1000.nii
-│   │   │   ├── 110001-01_01152020.DTI1000.bval
-│   │   │   ├── 110001-01_01152020.DTI1000.bvec
-│   │   │   ├── 110001-01_01152020.T2FLAIR.nii
-│   │   │   ├── 110001-01_01152020.SWI.nii
-│   │   │   ├── 110001-01_01152020.RS1.nii
-│   │   │   └── 110001-01-20200115120000_MRI110001-01_COR_MPRAGE.json
+│   │   │   ├── 900001-01_01152020.Cor_MPRAGE.nii
+│   │   │   ├── 900001-01_01152020.DTI1000.nii
+│   │   │   ├── 900001-01_01152020.DTI1000.bval
+│   │   │   ├── 900001-01_01152020.DTI1000.bvec
+│   │   │   ├── 900001-01_01152020.T2FLAIR.nii
+│   │   │   ├── 900001-01_01152020.SWI.nii
+│   │   │   ├── 900001-01_01152020.RS1.nii
+│   │   │   └── 900001-01-20200115120000_MRI900001-01_COR_MPRAGE.json
 │   │   │                                         scanner sidecars keep their
 │   │   │                                         original names — they do NOT
 │   │   │                                         match the NIfTI filenames
 │   │   ├── freesurfer741/                        recon output, one per session
-│   │   │   └── 110001-20200115_T1w/              FS subject ID = anat stem
+│   │   │   └── 900001-20200115_T1w/              FS subject ID = anat stem
 │   │   │       ├── mri/
 │   │   │       │   ├── T1.mgz
 │   │   │       │   ├── aparc+aseg.mgz
@@ -55,29 +55,29 @@ ADRC/
 │   │
 │   ├── 20200310/                                 PET SESSION: separate date
 │   │   ├── pet/
-│   │   │   └── 110001-20200310_PET.nii           variants: _PET_128, _PET_256,
+│   │   │   └── 900001-20200310_PET.nii           variants: _PET_128, _PET_256,
 │   │   │                                                   _PET_a, _PET_BIG
 │   │   ├── ct/                                   only when delivery includes CT
-│   │   │   └── 110001-20200310_CT.nii
+│   │   │   └── 900001-20200310_CT.nii
 │   │   └── suvr/
 │   │       ├── logs/
 │   │       │   └── suvr_setup_20200310_20240101_120000.log
-│   │       └── 110001-20200310_PET/
+│   │       └── 900001-20200310_PET/
 │   │           ├── logs/
 │   │           │   └── pet_registration_20240101_130000.log
 │   │           │
-│   │           ├── 110001_pet_20200310_mri_20200115/    one folder PER PAIR —
+│   │           ├── 900001_pet_20200310_mri_20200115/    one folder PER PAIR —
 │   │           │   │                                    every PET x every MRI
 │   │           │   ├── MRI/
-│   │           │   │   ├── 110001-20200115_T1w.nii
-│   │           │   │   ├── 110001-20200115_T1w_aparc+aseg.nii
-│   │           │   │   ├── 110001-20200310_PET.nii
-│   │           │   │   ├── 110001-20200115_T1w_asegVolume.csv
-│   │           │   │   ├── 110001-20200115_T1w_aparcstatsVolumLeft.csv
-│   │           │   │   └── 110001-20200115_T1w_aparcstatsVolumRight.csv
+│   │           │   │   ├── 900001-20200115_T1w.nii
+│   │           │   │   ├── 900001-20200115_T1w_aparc+aseg.nii
+│   │           │   │   ├── 900001-20200310_PET.nii
+│   │           │   │   ├── 900001-20200115_T1w_asegVolume.csv
+│   │           │   │   ├── 900001-20200115_T1w_aparcstatsVolumLeft.csv
+│   │           │   │   └── 900001-20200115_T1w_aparcstatsVolumRight.csv
 │   │           │   ├── register_scan/
-│   │           │   │   ├── 110001-20200310_reg_110001-20200115_T1w.nii
-│   │           │   │   └── 110001-20200310_reg_110001-20200115_T1w.mat
+│   │           │   │   ├── 900001-20200310_reg_900001-20200115_T1w.nii
+│   │           │   │   └── 900001-20200310_reg_900001-20200115_T1w.mat
 │   │           │   └── res/
 │   │           │       ├── ..._mean_suv.csv
 │   │           │       ├── ..._median_suv.csv
@@ -89,12 +89,12 @@ ADRC/
 │   │           │       ├── ..._max      ..._min                  scalars,
 │   │           │       └── ..._suv_cer  ..._suv_cer_gm           no extension
 │   │           │
-│   │           └── 110001_pet_20200310_mri_20210722/    same PET, second MRI
+│   │           └── 900001_pet_20200310_mri_20210722/    same PET, second MRI
 │   │
 │   └── logs/                                     subject-level
-│       └── pet_suvr_processing_110001_20240101_140000.log
+│       └── pet_suvr_processing_900001_20240101_140000.log
 │
-├── 110002/
+├── 900002/
 ├── ...
 │
 └── logs/                                         batch-level, sibling of subjects
@@ -123,7 +123,7 @@ NWSI/
 
 
 NAMING SUMMARY
-  subject dir     110001                             bare 6-digit ID
+  subject dir     900001                             bare 6-digit ID
   session dir     20200115                           bare YYYYMMDD
   image file      <subjid>-<YYYYMMDD>_<SUFFIX>.nii   hyphen, then underscore
   recon dir       <subjid>-<YYYYMMDD>_<T1w|CorMPRAGE>   = anat filename stem

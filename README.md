@@ -38,7 +38,7 @@ No subject data is included in this repository.
    └────┬─────────┘
         │
    ┌────▼─────────┐
-   │  6. extract  │  pull specific scans back out by subject + date
+   │  6. extract  │  find and view scans by subject + date
    └──────────────┘
 ```
 
@@ -84,8 +84,8 @@ python3 pipeline/3_suvr/registration.py        /data/batch12/ADRC --cores 8
 python3 pipeline/3_suvr/suvr.py                /data/batch12/ADRC
 
 # 6. Merge into the dataset (plan first, then --execute)
-python3 sync/merge_batch.py /data/batch12/ADRC --dest /data/NWSI/ADRC
-python3 sync/merge_batch.py /data/batch12/ADRC --dest /data/NWSI/ADRC --execute
+python3 pipeline/7_DirectoryStats/merge_batch.py --source /data/batch12/ADRC --dest /data/NWSI/ADRC
+python3 pipeline/7_DirectoryStats/merge_batch.py --source /data/batch12/ADRC --dest /data/NWSI/ADRC --execute
 
 # 7. Keep only the MRI registration closest in time to each PET (dry run first)
 python3 pipeline/5_aggregate/prune_suvr_registrations.py --source /data/NWSI/ADRC
@@ -97,14 +97,14 @@ python3 pipeline/5_aggregate/freesurfer_symlink.py --source /data/NWSI/ADRC --ta
 python3 pipeline/5_aggregate/suvr_symlink.py       --source /data/NWSI/ADRC --target /data/NWSI/suvr_link
 
 # 9. Study-level tables (mri_stats_all.py needs FreeSurfer sourced)
-python3 pipeline/5_aggregate/mri_stats_all.py  -fd /data/NWSI/freesurfer_link -o mri_output
-python3 pipeline/5_aggregate/suvr_stats_all.py -sd /data/NWSI/suvr_link       -o suvr_output
+python3 pipeline/5_aggregate/mri_stats_all.py  -ld /data/NWSI/freesurfer_link -o mri_output
+python3 pipeline/5_aggregate/suvr_stats_all.py -ld /data/NWSI/suvr_link       -o suvr_output
 
 # 10. How much is there, and how much is processed?
 python3 pipeline/7_DirectoryStats/directory_data_count.py -i /data/NWSI
 
 # 11. Scans that were never processed (new MRI, a PET whose MRI arrived later, ...)
-python3 pipeline/7_DirectoryStats/find_missing.py         /data/NWSI/ADRC
+python3 pipeline/7_DirectoryStats/find_missing.py --root  /data/NWSI/ADRC
 python3 pipeline/7_DirectoryStats/process_missing.py all  /data/NWSI/ADRC --dry-run
 ```
 
@@ -159,14 +159,14 @@ Both jobs install with `uv sync --locked`, so CI fails if `uv.lock` is out of da
 | [`pipeline/3_suvr/`](pipeline/3_suvr/) | PET–MRI pairing, FLIRT registration, SUVR + Centiloid |
 | [`pipeline/4_qc/`](pipeline/4_qc/) | Completeness and error checks |
 | [`pipeline/5_aggregate/`](pipeline/5_aggregate/) | SUVR pruning, symlink farms, study-level stats tables, dataset counts |
-| [`pipeline/6_extract/`](pipeline/6_extract/) | Pull scans back out by subject and date |
-| [`pipeline/7_DirectoryStats/`](pipeline/7_DirectoryStats/) | Dataset counts; find MRI/PET scans that were never processed, and process just those |
-| [`sync/`](sync/) | Append-only merges into the assembled dataset (`merge_batch.py` checks the batch first) |
+| [`pipeline/6_extract/`](pipeline/6_extract/) | Find and view scans by subject and date |
+| [`pipeline/7_DirectoryStats/`](pipeline/7_DirectoryStats/) | Dataset counts; checked batch merges (`merge_batch.py`); find MRI/PET scans that were never processed, and process just those |
+| [`sync/`](sync/) | Append-only rsync merges into the assembled dataset |
 | [`docker/`](docker/) | Dockerfile and license template |
 | [`docs/`](docs/) | The five guides |
 | [`examples/`](examples/) | Input file formats and an annotated tree |
-| [`tests/`](tests/) | pytest suite (ingest and missing stages) and its fixture manifest |
-| [`.github/workflows/`](.github/workflows/) | CI: ruff lint and ingest tests |
+| [`tests/`](tests/) | pytest suite (ingest, QC, aggregate, extract and 7_DirectoryStats) and its fixture manifest |
+| [`.github/workflows/`](.github/workflows/) | CI: ruff lint and the pytest suite |
 | `testdata/` | Local de-identified test set. **Gitignored**, never committed. |
 
 ---
@@ -245,7 +245,7 @@ include them.
 | [FreeSurfer 7.4.1](https://surfer.nmr.mgh.harvard.edu/fswiki/FreeSurferSoftwareLicense) | FreeSurfer Software License | Free, but every user must [register](https://surfer.nmr.mgh.harvard.edu/registration.html) for their own `license.txt`. The license is personal. Never commit it, bake it into an image, or share it. |
 | [FSL](https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/Licence) | FSL licence | Free for non-commercial use, which covers this project. Commercial use requires a paid licence from the University of Oxford. |
 | [MATLAB Runtime R2019b](https://www.mathworks.com/help/compiler/mcr-licensing.html) | MathWorks Runtime license | Free to install and use. The Dockerfile installs it through FreeSurfer's `fs_install_mcr`. |
-| nibabel · numpy · pandas · tqdm | MIT · BSD-3-Clause · BSD-3-Clause · MPL-2.0 and MIT | Permissive. Installed from PyPI, not included in this repository. |
+
 
 **Files from FreeSurfer that are included in this repository:**
 

@@ -89,7 +89,7 @@ out-of-memory when too many recons run concurrently.
 re-running:
 
 ```bash
-rm -rf /path/to/ADRC/110001/20200115/freesurfer741/110001-20200115_T1w
+rm -rf /path/to/ADRC/900001/20200115/freesurfer741/900001-20200115_T1w
 ```
 
 Reduce `CPU_CORES` if failures correlate with concurrency.
@@ -128,9 +128,9 @@ matching `*_PET*.nii`, **and** at least one `anat/` file matching `*T1w*` or `*C
 completed `freesurfer741/<mri_stem>/` for that MRI. Missing any one produces nothing, quietly.
 
 ```bash
-ls /path/to/ADRC/110001/*/pet/
-ls /path/to/ADRC/110001/*/anat/
-ls -d /path/to/ADRC/110001/*/freesurfer741/*/
+ls /path/to/ADRC/900001/*/pet/
+ls /path/to/ADRC/900001/*/anat/
+ls -d /path/to/ADRC/900001/*/freesurfer741/*/
 ```
 
 ### Far more pair folders than expected

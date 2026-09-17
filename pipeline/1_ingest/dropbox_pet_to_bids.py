@@ -70,7 +70,7 @@ PET_PATTERNS = [
 CT_PATTERNS = [
     "amyloid_pet_ct",
     "pet_ct",
-    "amyloid_ct",    # 220195-01_01012024.Amyloid_CT.nii
+    "amyloid_ct",    # 900195-01_01012024.Amyloid_CT.nii
 ]
 
 

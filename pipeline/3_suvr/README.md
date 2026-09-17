@@ -33,7 +33,7 @@ python3 run_suvr.py prepare  /path/to/ADRC --cores 8
 python3 run_suvr.py register /path/to/ADRC --cores 8
 python3 run_suvr.py quantify /path/to/ADRC --cores 4
 python3 run_suvr.py all      /path/to/ADRC --cores 8                   # all three in order
-python3 run_suvr.py quantify /path/to/ADRC --subject 110041 --compound amyvid
+python3 run_suvr.py quantify /path/to/ADRC --subject 900041 --compound amyvid
 python3 -m unittest test_suvr_pipeline                                  # unit tests
 ```
 
