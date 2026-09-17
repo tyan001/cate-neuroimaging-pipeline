@@ -161,6 +161,6 @@ IDs and dates in the documentation and examples are synthetic.
 
 ## License
 
-[MIT](LICENSE). FreeSurfer, FSL, and the MATLAB Runtime are installed at Docker build time and carry
+[MIT](LICENSE). FreeSurfer and FSL are installed at Docker build time and carry
 their own licenses — review them before redistributing a built image. FSL in particular is free for
 academic use only.
