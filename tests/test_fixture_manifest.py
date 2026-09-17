@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from conftest import MANIFEST, REPO_ROOT, manifest_paths
+from manifest_data import MANIFEST, REPO_ROOT, manifest_paths
 
 sys.path.insert(0, str(MANIFEST.parent))
 import update_manifest  # noqa: E402

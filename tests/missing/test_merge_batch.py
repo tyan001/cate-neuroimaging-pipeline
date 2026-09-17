@@ -10,7 +10,12 @@ import pytest
 STATS_DIR = Path(__file__).resolve().parents[2] / "pipeline" / "7_DirectoryStats"
 sys.path.insert(0, str(STATS_DIR))
 
-import merge_batch  # noqa: E402
+# inventory.py imports the PET/MRI layout helpers from pipeline/3_suvr/dev/OOP, which is not part
+# of the repo, so these tests only run where that code is present (not in CI or a fresh clone).
+try:
+    import merge_batch  # noqa: E402
+except ImportError as exc:
+    pytest.skip(f"needs the SUVR layout code: {exc}", allow_module_level=True)
 
 pytestmark = pytest.mark.skipif(shutil.which("rsync") is None, reason="rsync not installed")
 

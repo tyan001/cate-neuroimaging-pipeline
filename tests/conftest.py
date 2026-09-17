@@ -9,21 +9,15 @@ it has been copied and renamed.
 
 import logging
 import sys
-from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+from manifest_data import REPO_ROOT, manifest_paths
+
 INGEST_DIR = REPO_ROOT / "pipeline" / "1_ingest"
-MANIFEST = Path(__file__).resolve().parent / "fixtures" / "ingest_data_manifest.txt"
 
 # The pipeline stages are standalone scripts in digit-prefixed folders, not packages.
 sys.path.insert(0, str(INGEST_DIR))
-
-
-def manifest_paths():
-    lines = MANIFEST.read_text().splitlines()
-    return [line for line in lines if line and not line.startswith("#")]
 
 
 def build_tree(root, rel_paths):

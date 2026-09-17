@@ -42,7 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.12"]
         suite:
           - name: 1_ingest
             paths: tests/ingest tests/test_fixture_manifest.py

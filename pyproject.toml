@@ -33,3 +33,11 @@ dev = [
 # `uv sync` to creating the venv and installing the dependencies below.
 [tool.uv]
 package = false
+
+# pytest.ini is gitignored, so the settings live here to apply on a clean checkout (CI) too.
+# xfail_strict makes an xfail that starts passing a failure: the bug it documents is fixed and
+# the marker must go.
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+xfail_strict = true
