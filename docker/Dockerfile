@@ -79,7 +79,7 @@ RUN pip3 install --no-cache-dir -r /tmp/requirements.txt && \
 # Directory copies (not globs) so data files such as FreesurferLUTR.txt,
 # which suvr.py loads from its own directory, actually land in the image.
 RUN mkdir -p /workspace
-COPY pipeline/2_freesurfer/ /workspace/
+COPY pipeline/2_freesurfer/ /workspace/freesurfer/
 COPY pipeline/3_suvr/       /workspace/suvr/
 COPY pipeline/4_qc/         /workspace/qc/
 

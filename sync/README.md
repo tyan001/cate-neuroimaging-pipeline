@@ -12,7 +12,7 @@ rsync -av --copy-links --ignore-existing
   already in the tree. This is the safety property the whole workflow leans on.
 - `--copy-links` dereferences symlinks so the destination is self-contained.
 
-All four run `rsync` under `nohup` in the background and print the PID and log path.
+The four shell scripts run `rsync` under `nohup` in the background and print the PID and log path.
 
 ---
 
@@ -38,6 +38,44 @@ export ADRC_ROOT=/data/NWSI/ADRC
 ---
 
 ## Merging a batch
+
+### merge_batch.py (checked merge, recommended)
+
+```bash
+python3 merge_batch.py /data/Processing/Both/batch87/ADRC --dest /data/NWSI/ADRC            # plan
+python3 merge_batch.py /data/Processing/Both/batch87/ADRC --dest /data/NWSI/ADRC --execute  # copy
+
+# or by batch number, with the same environment variables as the shell scripts
+ADRC_ROOT=/data/NWSI/ADRC PROCESSING_ROOT=/data/Processing python3 merge_batch.py 87 --execute
+```
+
+Without `--execute` it only prints the plan. The copy is the same append-only
+`rsync -a --copy-links --ignore-existing`, run in the foreground (wrap it in `nohup` for big
+batches), but only for files that pass these checks:
+
+| In the batch | What happens |
+|---|---|
+| New files | Copied |
+| A file the main folder already has, same content | Left alone (a re-delivered file with a different modification time counts as the same) |
+| A file the main folder already has, different content | Left alone, listed as a **conflict** |
+| A `freesurfer741/<scan>/` or SUVR pair folder that the main folder already has | Skipped as a whole, so two runs never get mixed in one folder |
+| A failed or unfinished recon-all (`recon-all.error`, missing outputs) | Skipped; the scan in `anat/` is still copied |
+| An SUVR pair folder without `res/<pair>_suvr_combined_cerebellum.csv` | Skipped; the PET is still copied |
+| A scan whose filename date is not its session folder | Skipped |
+| `freesurfer741/fsaverage` | Skipped. recon-all links it to the FreeSurfer install, and following the link would copy a 480 MB template into every session (about a third of batch87). |
+| `fs_logs/ADRC.log` | Copied to `logs/fs_logs/<batch>.log`. Other batch-level folders go under `logs/`. |
+
+Skipped folders are the ones the next step reprocesses. After merging, run
+`pipeline/7_DirectoryStats/find_missing.py` on the main folder.
+`--include-incomplete` copies failed or unfinished folders anyway.
+
+When it finishes, it checks that every copied file is in the main folder with the right size.
+It exits nonzero if rsync or that check fails. The plan and the rsync output are logged to
+`${ADRC_ROOT}/logs/merge_logs/<batch>_<timestamp>.log`.
+
+### Shell scripts
+
+These copy the whole batch as-is, in the background, without the checks above.
 
 ```bash
 ./sync_batch.sh 12          # combined MRI + PET batch

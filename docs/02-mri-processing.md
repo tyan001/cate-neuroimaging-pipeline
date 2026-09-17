@@ -83,7 +83,7 @@ Verify the result before spending CPU-days on it:
 find /path/to/batch/ADRC -path '*/anat/*.nii' | sort
 
 # how many sessions got an anat/, pet/, ct/ and modalities/ folder
-python3 pipeline/5_aggregate/directory_data_count.py -i /path/to/batch
+python3 pipeline/7_DirectoryStats/directory_data_count.py -i /path/to/batch
 ```
 
 The file list is an easy way to spot missing or misnamed scans. The count shows whether every

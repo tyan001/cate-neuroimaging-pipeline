@@ -180,7 +180,7 @@ python3 pipeline/5_aggregate/mri_stats_all.py  -fd /path/to/NWSI/freesurfer_link
 python3 pipeline/5_aggregate/suvr_stats_all.py -sd /path/to/NWSI/suvr_link       -o suvr_output
 
 # progress check: folders in ADRC/ against entries in the two farms
-python3 pipeline/5_aggregate/directory_data_count.py -i /path/to/NWSI
+python3 pipeline/7_DirectoryStats/directory_data_count.py -i /path/to/NWSI
 ```
 
 ```

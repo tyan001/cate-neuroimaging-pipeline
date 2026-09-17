@@ -83,8 +83,9 @@ python3 pipeline/3_suvr/prepare_suvr_folder.py /data/batch12/ADRC --cores 8
 python3 pipeline/3_suvr/registration.py        /data/batch12/ADRC --cores 8
 python3 pipeline/3_suvr/suvr.py                /data/batch12/ADRC
 
-# 6. Merge into the dataset
-ADRC_ROOT=/data/NWSI/ADRC ./sync/sync_batch.sh 12
+# 6. Merge into the dataset (plan first, then --execute)
+python3 sync/merge_batch.py /data/batch12/ADRC --dest /data/NWSI/ADRC
+python3 sync/merge_batch.py /data/batch12/ADRC --dest /data/NWSI/ADRC --execute
 
 # 7. Keep only the MRI registration closest in time to each PET (dry run first)
 python3 pipeline/5_aggregate/prune_suvr_registrations.py --source /data/NWSI/ADRC
@@ -100,7 +101,11 @@ python3 pipeline/5_aggregate/mri_stats_all.py  -fd /data/NWSI/freesurfer_link -o
 python3 pipeline/5_aggregate/suvr_stats_all.py -sd /data/NWSI/suvr_link       -o suvr_output
 
 # 10. How much is there, and how much is processed?
-python3 pipeline/5_aggregate/directory_data_count.py -i /data/NWSI
+python3 pipeline/7_DirectoryStats/directory_data_count.py -i /data/NWSI
+
+# 11. Scans that were never processed (new MRI, a PET whose MRI arrived later, ...)
+python3 pipeline/7_DirectoryStats/find_missing.py         /data/NWSI/ADRC
+python3 pipeline/7_DirectoryStats/process_missing.py all  /data/NWSI/ADRC --dry-run
 ```
 
 `directory_data_count.py` counts the `anat/`, `ct/`, `pet/` and `modalities/` folders under
@@ -155,11 +160,12 @@ Both jobs install with `uv sync --locked`, so CI fails if `uv.lock` is out of da
 | [`pipeline/4_qc/`](pipeline/4_qc/) | Completeness and error checks |
 | [`pipeline/5_aggregate/`](pipeline/5_aggregate/) | SUVR pruning, symlink farms, study-level stats tables, dataset counts |
 | [`pipeline/6_extract/`](pipeline/6_extract/) | Pull scans back out by subject and date |
-| [`sync/`](sync/) | Append-only rsync merges into the assembled dataset |
+| [`pipeline/7_DirectoryStats/`](pipeline/7_DirectoryStats/) | Dataset counts; find MRI/PET scans that were never processed, and process just those |
+| [`sync/`](sync/) | Append-only merges into the assembled dataset (`merge_batch.py` checks the batch first) |
 | [`docker/`](docker/) | Dockerfile and license template |
 | [`docs/`](docs/) | The five guides |
 | [`examples/`](examples/) | Input file formats and an annotated tree |
-| [`tests/`](tests/) | pytest suite (ingest stage) and its fixture manifest |
+| [`tests/`](tests/) | pytest suite (ingest and missing stages) and its fixture manifest |
 | [`.github/workflows/`](.github/workflows/) | CI: ruff lint and ingest tests |
 | `testdata/` | Local de-identified test set. **Gitignored**, never committed. |
 

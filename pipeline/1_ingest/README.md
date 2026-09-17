@@ -61,7 +61,7 @@ python3 dropbox_mri_to_bids.py /path/to/MRI --target_dir /path/to/batch
 Prefers a `T1` series, falls back to `Cor_MPRAGE`. Logs to `<target>/logs/mri_bids_logs/`.
 
 > The chosen T1 is latched per **subject**, not per session — convert multi-session subjects one
-> session at a time, then verify the `anat` count with `pipeline/5_aggregate/directory_data_count.py`.
+> session at a time, then verify the `anat` count with `pipeline/7_DirectoryStats/directory_data_count.py`.
 
 ## dropbox_pet_to_bids.py
 
@@ -75,9 +75,31 @@ python3 dropbox_pet_to_bids.py /path/to/PET --target_dir /path/to/batch
 └── ct/   <subjid>-<YYYYMMDD>_CT.nii
 ```
 
-PET series are matched by the substrings `mean_5mmblur`, `PET_6mmblur`, `PET_3mmblur`, `PET_256`;
-CT by `amyloid_pet_ct`, `pet_ct`. **These are site- and scanner-specific — edit them for your data.**
-Logs to `<target>/logs/pet_bids_logs/`.
+PET and CT files are found by case-insensitive filename substrings, listed at the top of the
+script:
+
+| List | Substrings (in priority order) |
+|---|---|
+| `PET_PATTERNS` | `mean_5mmblur`, `PET_6mmblur`, `PET_3mmblur`, `PET_256`, `PET_128` (also matches `PET_128a`) |
+| `CT_PATTERNS` | `amyloid_pet_ct`, `pet_ct`, `amyloid_ct` |
+
+**These are site- and scanner-specific.** When a delivery uses a new name, add a substring to the
+list, or pass it for one run:
+
+```bash
+python3 dropbox_pet_to_bids.py /path/to/PET --target_dir /path/to/batch \
+        --pet-pattern PET_200 --ct-pattern CT_Brain        # both repeatable
+```
+
+- **Priority.** If a session folder has several matching files, the one that matches the earliest
+  substring is used. Extra patterns from the command line are tried after the built-in ones.
+  Remaining ties go to the file closest to the session folder, then to the first name alphabetically.
+- **CT wins.** A file that matches a CT substring is never used as the PET, so a broad PET
+  substring can't pick up `Amyloid_PET_CT.nii`.
+- **Misses are logged.** When no PET or CT is found, the warning lists the folder's `.nii` files,
+  so a renamed series is easy to spot.
+
+Only `.nii` files are considered. Logs to `<target>/logs/pet_bids_logs/`.
 
 ---
 
