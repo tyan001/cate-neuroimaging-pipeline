@@ -1,0 +1,53 @@
+# ---------------------------------------------------------------------------
+# FreeSurfer license — NEVER commit this. It is tied to a named individual.
+# Get your own at https://surfer.nmr.mgh.harvard.edu/registration.html
+# ---------------------------------------------------------------------------
+license.txt
+*license.txt
+.license
+
+# ---------------------------------------------------------------------------
+# Imaging data — no subject data belongs in this repository.
+# ---------------------------------------------------------------------------
+ADRC/
+NWSI/
+Processing/
+*.nii
+*.nii.gz
+*.mgz
+*.gii
+testdata/
+mri_output/
+suvr_output/
+*OOP/
+*dev/
+pytest.ini
+
+# ---------------------------------------------------------------------------
+# Run artifacts
+# ---------------------------------------------------------------------------
+*.log
+nohup.out
+logs/
+fs_logs/
+conversion_logs/
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.ruff_cache/
+.pytest_cache/
+venv/
+.ipynb_checkpoints/
+
+# ---------------------------------------------------------------------------
+# Editors / OS
+# ---------------------------------------------------------------------------
+.DS_Store
+.vscode/
+.idea/
+*.swp

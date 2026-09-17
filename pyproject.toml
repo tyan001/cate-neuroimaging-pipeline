@@ -1,0 +1,41 @@
+[project]
+name = "cate-neuroimaging-pipeline"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Thony", email = "tyan001@fiu.edu" }
+]
+requires-python = ">=3.12"
+# Version floors, not pins: any recent release works. Exact versions are locked in uv.lock.
+# Everything else the scripts import is in the standard library.
+dependencies = [
+    # read registered PET and aparc+aseg NIfTI volumes (3_suvr/suvr.py, 4_qc/check_mprage.py)
+    "nibabel>=5.0",
+    # per-ROI voxel statistics (3_suvr/suvr.py)
+    "numpy>=1.24",
+    # volume tables, SUVR result CSVs, study-level aggregation
+    # (3_suvr, 5_aggregate, 6_extract/batch_copy_scans.py)
+    "pandas>=2.0",
+    # progress bars for the parallel SUVR stages
+    "tqdm>=4.65",
+]
+
+[dependency-groups]
+# Test and lint tools; `uv sync` installs this group by default.
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.16",
+]
+
+[project.scripts]
+cate-neuroimaging-pipeline = "cate_neuroimaging_pipeline:main"
+
+[build-system]
+requires = ["uv_build>=0.12.15,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.workspace]
+members = [
+    "git",
+]
