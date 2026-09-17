@@ -34,13 +34,28 @@ jobs:
           --config "src = ['pipeline/1_ingest', 'pipeline/6_extract', 'pipeline/7_DirectoryStats', 'sync', 'tests', 'tests/fixtures']"
           pipeline/1_ingest pipeline/6_extract pipeline/7_DirectoryStats sync tests
 
+  # One job per pipeline stage, so a failure names the stage and can be re-run on its own.
+  # To add a stage: add an entry to `suite` with the folder its tests live in.
   pytest:
-    name: pytest (Python ${{ matrix.python-version }})
+    name: ${{ matrix.suite.name }} (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.13"]
+        suite:
+          - name: 1_ingest
+            paths: tests/ingest tests/test_fixture_manifest.py
+          - name: 4_qc
+            paths: tests/qc
+          - name: 5_aggregate
+            paths: tests/aggregate
+          - name: 6_extract
+            paths: tests/extract
+          # find_missing, process_missing, merge_batch (needs rsync, present on ubuntu-latest)
+          # and directory_data_count
+          - name: 7_DirectoryStats
+            paths: tests/missing
     steps:
       - uses: actions/checkout@v5
 
@@ -48,23 +63,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
-          cache-suffix: ingest
+          # One cache per Python version; the dependencies are the same for every suite.
+          cache-suffix: tests
 
       - name: Install dependencies
         run: uv sync --locked
 
-      - name: Run ingest tests
-        run: uv run pytest tests/ingest tests/test_fixture_manifest.py -v
-
-      # find_missing, process_missing, merge_batch (needs rsync, which ubuntu-latest has) and directory_data_count
-      - name: Run DirectoryStats tests
-        run: uv run pytest tests/missing -v
-
-      - name: Run QC tests
-        run: uv run pytest tests/qc -v
-
-      - name: Run aggregate tests
-        run: uv run pytest tests/aggregate -v
-
-      - name: Run extract tests
-        run: uv run pytest tests/extract -v
+      - name: Run ${{ matrix.suite.name }} tests
+        run: uv run pytest ${{ matrix.suite.paths }} -v
