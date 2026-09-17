@@ -18,7 +18,6 @@ python3 suvr.py                /path/to/ADRC
 | `registration.py` | FSL FLIRT, PET into FreeSurfer T1 space |
 | `suvr.py` | Per-ROI SUV → SUVR → Centiloid |
 | `FreesurferLUTR.txt` | **Required data file** — 116-row ROI label→name table, loaded by `suvr.py` from its own directory. Keep it beside `suvr.py`. |
-| `make_suvr_symlink_farm.py` | Flat directory of symlinks to every `<subj>-<date>_PET[...]` output folder |
 | `OOP/` | Object-oriented version of the three scripts above — see below and [OOP/README.md](OOP/README.md) |
 
 ---

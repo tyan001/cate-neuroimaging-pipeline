@@ -22,7 +22,15 @@ SOFTWARE.
 
 ---
 
-Note on third-party software: this repository contains no FreeSurfer, FSL, or
+Note on third-party software: the MIT license above covers only the files
+written for this project. It does not cover:
+
+  pipeline/5_aggregate/ConcatenateSubregionsResults
+      FreeSurfer's quantifyData.sh utility, under the FreeSurfer license.
+  pipeline/3_suvr/FreesurferLUTR.txt
+      A subset of label names from FreeSurfer's FreeSurferColorLUT.txt.
+
+Apart from those two files, this repository contains no FreeSurfer, FSL, or
 MATLAB Runtime code. The Docker image built from docker/Dockerfile downloads
 and installs them at build time, and each carries its own license:
 

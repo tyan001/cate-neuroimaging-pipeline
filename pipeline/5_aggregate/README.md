@@ -1,15 +1,21 @@
 # 5. Aggregation and reporting
 
-Walks the assembled dataset and collapses it into flat, study-level CSVs — plus utilities for
-generating shareable derivatives and inventory reports.
+Walks the assembled dataset and collapses it into flat, study-level CSVs. Also includes utilities
+for pruning SUVR registrations, building symlink farms, generating shareable derivatives, and
+counting what has been processed.
+
+Typical order after a batch is synced: `prune_suvr_registrations.py` → `freesurfer_symlink.py` +
+`suvr_symlink.py` → `mri_stats_all.py` + `suvr_stats_all.py` → `directory_data_count.py`.
 
 | Script | Output | Row = | Needs |
 |---|---|---|---|
+| `prune_suvr_registrations.py` | removes (or quarantines) extra MRI registrations per PET | — | stdlib |
+| `freesurfer_symlink.py` | flat FreeSurfer symlink farm | one recon | stdlib |
+| `suvr_symlink.py` | flat SUVR symlink farm | one PET output folder | stdlib |
 | `mri_stats_all.py` | 6 per-measure CSVs | one recon MRI subject | FreeSurfer on PATH, FreeSurfer symlink farm |
 | `suvr_stats_all.py` | one CSV per pattern (4 total) | one PET–MRI pair | pandas only, SUVR symlink farm |
 | `mri_site_data.py` | `sitedata_mri/` per session | — | FreeSurfer on PATH |
-| `anat_report.py` | inventory CSV of all `anat/` files | one scan | pandas |
-| `pet_report.py` | inventory CSV of all `pet/` folders | one file | stdlib |
+| `directory_data_count.py` | printed counts of `anat`/`ct`/`pet`/`modalities` folders and farm entries | — | stdlib |
 | `ConcatenateSubregionsResults` | concatenated `.stats` across subjects | one subject | FreeSurfer (vendored utility) |
 
 Expected input layout: [docs/04-data-organization.md](../../docs/04-data-organization.md).
@@ -19,11 +25,86 @@ nested `ADRC/` tree directly (recons and SUVR output are scattered one per sessi
 `SUBJECTS_DIR`). Build/refresh the farms first:
 
 ```bash
-python3 ../../../scripts/freesurfer/make_symlink_farm.py --source /path/to/ADRC --target /path/to/NWSI/freesurfer
-python3 ../../../scripts/suvr/make_suvr_symlink_farm.py  --source /path/to/ADRC --target /path/to/NWSI/suvr
+python3 freesurfer_symlink.py --source /path/to/ADRC --target /path/to/NWSI/freesurfer_link
+python3 suvr_symlink.py       --source /path/to/ADRC --target /path/to/NWSI/suvr_link
 ```
 
-Both are safe to rerun any time (idempotent — only adds symlinks for new subjects/scans).
+Both are safe to rerun any time (idempotent — only adds symlinks for new subjects/scans). See
+[freesurfer_symlink.py](#freesurfer_symlinkpy-and-suvr_symlinkpy) below.
+
+---
+
+## prune_suvr_registrations.py
+
+```bash
+python3 prune_suvr_registrations.py --source /path/to/ADRC                     # dry run
+python3 prune_suvr_registrations.py --source /path/to/ADRC --execute \
+        --quarantine /path/to/NWSI/suvr_pruned                                 # move extras aside
+python3 prune_suvr_registrations.py --source /path/to/ADRC --execute           # delete extras
+```
+
+A PET output folder under `suvr/` can hold one registration per FreeSurfer MRI session. This script
+keeps the registration whose MRI date is closest to the PET session date and removes the others. Run
+it before `suvr_stats_all.py`, or every registration of the same PET ends up as its own row.
+
+- The PET date comes from the `<session>` folder name. The MRI date is the token after `_mri_`.
+- Ties and unparseable dates are skipped and reported as `SKIP`. They are never removed.
+- It is a **dry run unless `--execute` is given**. With `--quarantine DIR`, removed folders are moved
+  under `DIR` with their ADRC-relative path, so they can be restored.
+
+| Option | Default | |
+|---|---|---|
+| `--source` | required | ADRC root |
+| `--dirname` | `suvr` | session-level SUVR folder name |
+| `--execute` | off | actually remove or move folders |
+| `--quarantine DIR` | — | move instead of delete |
+
+## freesurfer_symlink.py and suvr_symlink.py
+
+```bash
+python3 freesurfer_symlink.py --source /path/to/ADRC --target /path/to/NWSI/freesurfer_link [--dry-run] [--force]
+python3 suvr_symlink.py       --source /path/to/ADRC --target /path/to/NWSI/suvr_link       [--dry-run] [--force]
+```
+
+Each script creates one symlink per output folder in a single flat directory. No data is moved or
+copied.
+
+| Script | Links to | Excluded | Folder option |
+|---|---|---|---|
+| `freesurfer_symlink.py` | `<subj>/<date>/freesurfer741/<subj>-<date>_<seq>` | `fsaverage` | `--fs-dirname` (default `freesurfer741`, exact match, so `freesurfer741_t` is skipped) |
+| `suvr_symlink.py` | `<subj>/<date>/suvr/<subj>-<date>_PET[...]` | `logs` | `--dirname` (default `suvr`) |
+
+Every `_PET_128`, `_PET_256`, `_PET_a` variant gets its own link. An existing link that points
+somewhere else is left alone unless you pass `--force`. A real file or folder with the same name is
+never overwritten. The run ends with a summary of links created, replaced, already up to date, and
+skipped.
+
+## directory_data_count.py
+
+```bash
+python3 directory_data_count.py -i /path/to/NWSI
+```
+
+`-i` is the NWSI root: the folder that contains `ADRC/`, `freesurfer_link/` and `suvr_link/`.
+Without `-i` it uses the `NWSI_ROOT` environment variable, and exits with an error if neither is set.
+
+```
+Subjects in ADRC: 780
+
+== ADRC folders (ADRC/<subject>/<date>/<folder>) ==
+  anat            857
+  ct               57
+  pet             606
+  modalities      414
+
+== Processed outputs ==
+  freesurfer_link     856  (broken links: 0)
+  suvr_link           574  (broken links: 0)
+```
+
+`anat` against `freesurfer_link` shows how many T1s still need `recon-all`. `pet` against
+`suvr_link` shows how many PET scans still need SUVR. A broken link means the output folder it
+pointed to was moved or deleted. Rebuild the farm with `--force` or remove the link.
 
 ---
 
@@ -31,12 +112,12 @@ Both are safe to rerun any time (idempotent — only adds symlinks for new subje
 
 ```bash
 source $FREESURFER_HOME/SetUpFreeSurfer.sh
-python3 mri_stats_all.py -fd /path/to/NWSI/freesurfer -o mri_output
+python3 mri_stats_all.py -fd /path/to/NWSI/freesurfer_link -o mri_output
 ```
 
 1. Lists every entry in the flat FreeSurfer symlink farm (skipping any without a `stats/` dir) —
    the farm is a flat directory of symlinks, one per `<subjid>-<scandate>_<type>` recon, built by
-   `scripts/freesurfer/make_symlink_farm.py`.
+   `freesurfer_symlink.py`.
 2. Points `SUBJECTS_DIR` straight at the farm so FreeSurfer's table tools see one flat subjects
    directory — necessary because recons are scattered one per session with no central `SUBJECTS_DIR`
    on disk.
@@ -63,12 +144,12 @@ works even without `quantifyHippocampalSubfields.sh` installed. Subjects lacking
 ## suvr_stats_all.py
 
 ```bash
-python3 suvr_stats_all.py -sd /path/to/NWSI/suvr -o suvr_output              # all four
-python3 suvr_stats_all.py -sd /path/to/NWSI/suvr -o suvr_output \
+python3 suvr_stats_all.py -sd /path/to/NWSI/suvr_link -o suvr_output         # all four
+python3 suvr_stats_all.py -sd /path/to/NWSI/suvr_link -o suvr_output \
         --pattern suvr_combined_cerebellum                                   # just one
 ```
 
-Walks the flat SUVR symlink farm (`scripts/suvr/make_suvr_symlink_farm.py` — one symlink per PET
+Walks the flat SUVR symlink farm (`suvr_symlink.py` — one symlink per PET
 scan), finds every `res/` folder reachable from each entry, picks the CSV ending in
 `_<pattern>.csv`, and stacks the rows. Pure pandas — no FreeSurfer needed.
 
@@ -111,23 +192,6 @@ Builds the shareable derivative of each recon: `mri/{T1,brain,wm,aparc+aseg}.mgz
 and `mris_convert`. Logs to `<path>/conversion_logs/`.
 
 Regenerable at any time from the recon, so it is the first thing to delete if space is tight.
-
-## anat_report.py
-
-```bash
-python3 anat_report.py /path/to/ADRC -o mri_scans.csv
-```
-
-Inventory of every `anat/` file with parsed `SubjID, Scandate, Modality, Filepath`. The quickest way
-to verify an ingest before committing CPU-days to `recon-all`.
-
-## pet_report.py
-
-```bash
-python3 pet_report.py /path/to/ADRC -o pet_folders.csv
-```
-
-Lists every `pet/` directory and its files. Stdlib only.
 
 ## ConcatenateSubregionsResults
 

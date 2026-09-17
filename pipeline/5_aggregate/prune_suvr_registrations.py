@@ -34,8 +34,8 @@ import sys
     ADRC-relative path) instead of being deleted, so they can be restored.
 
     Usage:
-        python prune_suvr_registrations.py --source /mnt/backup/dev/NWSI/ADRC
-        python prune_suvr_registrations.py --source ... --execute --quarantine /mnt/backup/dev/NWSI/suvr_pruned
+        python prune_suvr_registrations.py --source /path/to/NWSI/ADRC
+        python prune_suvr_registrations.py --source ... --execute --quarantine /path/to/NWSI/suvr_pruned
         python prune_suvr_registrations.py --source ... --execute
 """
 

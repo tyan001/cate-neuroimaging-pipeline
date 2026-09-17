@@ -277,11 +277,19 @@ PID,Compound,Centiloid,AnteriorCingulateLeft,...,GlobalLeft,GlobalRight,Global
 ## Step 4 — Aggregate across the study
 
 ```bash
-python3 scripts/suvr/make_suvr_symlink_farm.py --source /path/to/ADRC --target /path/to/NWSI/suvr
-python3 pipeline/5_aggregate/suvr_stats_all.py -sd /path/to/NWSI/suvr -o suvr_output
+# keep only the MRI registration closest to each PET (dry run first, then --execute)
+python3 pipeline/5_aggregate/prune_suvr_registrations.py --source /path/to/ADRC
+python3 pipeline/5_aggregate/prune_suvr_registrations.py --source /path/to/ADRC \
+        --execute --quarantine /path/to/NWSI/suvr_pruned
+
+python3 pipeline/5_aggregate/suvr_symlink.py --source /path/to/ADRC --target /path/to/NWSI/suvr_link
+python3 pipeline/5_aggregate/suvr_stats_all.py -sd /path/to/NWSI/suvr_link -o suvr_output
 ```
 
-Walks every `res/` directory reachable from the flat SUVR symlink farm and concatenates the four
+Pruning comes first because every registration of a PET scan becomes its own row in the tables. If
+you want all PET×MRI combinations, skip it.
+
+`suvr_stats_all.py` walks every `res/` directory reachable from the flat SUVR symlink farm and concatenates the four
 SUVR CSV families into study-level tables, parsing subject, PET date, and MRI date out of each pair
 folder name. See [`pipeline/5_aggregate/README.md`](../pipeline/5_aggregate/README.md).
 

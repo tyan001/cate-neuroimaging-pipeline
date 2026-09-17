@@ -61,7 +61,7 @@ python3 dropbox_mri_to_bids.py /path/to/MRI --target_dir /path/to/batch
 Prefers a `T1` series, falls back to `Cor_MPRAGE`. Logs to `<target>/logs/mri_bids_logs/`.
 
 > The chosen T1 is latched per **subject**, not per session — convert multi-session subjects one
-> session at a time, then verify with `pipeline/5_aggregate/anat_report.py`.
+> session at a time, then verify the `anat` count with `pipeline/5_aggregate/directory_data_count.py`.
 
 ## dropbox_pet_to_bids.py
 

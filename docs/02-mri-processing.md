@@ -74,17 +74,20 @@ Logs land in `<target>/logs/mri_bids_logs/`.
 
 > **Known issue.** The chosen T1 is latched per *subject*, not per *session*. If one run converts a
 > subject with several sessions, the first session's T1 is reused for the later ones. Convert
-> multi-session subjects one session at a time, or verify `anat/` afterwards with
-> `pipeline/5_aggregate/anat_report.py`.
+> multi-session subjects one session at a time, and check `anat/` afterwards (below).
 
 Verify the result before spending CPU-days on it:
 
 ```bash
-python3 pipeline/5_aggregate/anat_report.py /path/to/batch/ADRC -o anat_check.csv
+# every anat/ file, one per line: <subjid>/<date>/anat/<subjid>-<date>_T1w.nii
+find /path/to/batch/ADRC -path '*/anat/*.nii' | sort
+
+# how many sessions got an anat/, pet/, ct/ and modalities/ folder
+python3 pipeline/5_aggregate/directory_data_count.py -i /path/to/batch
 ```
 
-This lists every `anat/` file with its parsed subject, date, and modality — an easy way to spot
-missing or misnamed scans.
+The file list is an easy way to spot missing or misnamed scans. The count shows whether every
+session received a T1.
 
 ---
 

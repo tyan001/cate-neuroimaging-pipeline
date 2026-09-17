@@ -10,14 +10,14 @@ symlink farm into SEPARATE per-measure CSVs (one row per recon subject):
     hippocampus.csv       hippocampal subfield volumes, left + right (segmentHA)
     amygdala.csv          amygdala nuclei volumes, left + right (segmentHA)
 
-Input layout: a flat symlink farm as built by scripts/freesurfer/make_symlink_farm.py --
+Input layout: a flat symlink farm as built by freesurfer_symlink.py --
 one symlink per '<subjid>-<scandate>_<type>' recon, pointing at the real
 '<root>/<subjid>/<session>/freesurfer741/<subjid>-<scandate>_<type>/' directory
 (recons are otherwise scattered one per session, with no central SUBJECTS_DIR).
 Build/refresh the farm first if it doesn't exist yet or is out of date:
 
-    python scripts/freesurfer/make_symlink_farm.py \
-        --source /path/to/ADRC --target /path/to/NWSI/freesurfer
+    python freesurfer_symlink.py \
+        --source /path/to/ADRC --target /path/to/NWSI/freesurfer_link
 
 Requires a working FreeSurfer environment (FREESURFER_HOME set, valid license) for
 the aseg/aparc/wmparc tables; the hippocampus/amygdala tables are parsed directly
@@ -26,7 +26,7 @@ no FreeSurfer tools needed for those two.
 
 Usage:
     source $FREESURFER_HOME/SetUpFreeSurfer.sh
-    python mri_stats_all.py -fd /path/to/NWSI/freesurfer -o mri_output
+    python mri_stats_all.py -fd /path/to/NWSI/freesurfer_link -o mri_output
 """
 import argparse
 import os
@@ -43,7 +43,7 @@ SUBJECT_RE = re.compile(r"^(?P<subject_id>[^-]+)-(?P<scan_date>\d{8})_(?P<scan_t
 def find_farm_subjects(farm_dir: Path):
     """List every subject in the flat symlink farm that has a stats/ dir.
 
-    The farm is a flat directory of symlinks (scripts/freesurfer/make_symlink_farm.py),
+    The farm is a flat directory of symlinks (freesurfer_symlink.py),
     each named '<subjid>-<scandate>_<type>' and pointing at the real recon directory.
     This only validates and lists the farm -- it does not walk the raw ADRC tree, which
     is what made the old rglob-based discovery slow.
@@ -128,7 +128,7 @@ def main():
     parser = argparse.ArgumentParser(description="Aggregate FreeSurfer MRI stats into per-measure CSVs.")
     parser.add_argument("-fd", "--farm-dir", required=True,
                         help="Flat FreeSurfer symlink farm, as built by "
-                             "scripts/freesurfer/make_symlink_farm.py (e.g. NWSI/freesurfer).")
+                             "freesurfer_symlink.py (e.g. NWSI/freesurfer_link).")
     parser.add_argument("-o", "--output-dir", default="mri_output",
                         help="Directory to write the per-measure CSVs (default: mri_output).")
     args = parser.parse_args()
@@ -137,7 +137,7 @@ def main():
     if not farm_dir.is_dir():
         parser.error(
             f"Invalid farm directory: {farm_dir}\n"
-            f"Build it first with: python scripts/freesurfer/make_symlink_farm.py "
+            f"Build it first with: python freesurfer_symlink.py "
             f"--source /path/to/ADRC --target {farm_dir}"
         )
 

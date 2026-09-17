@@ -100,10 +100,10 @@ sidecars.
 
 **8. The FreeSurfer subject ID is the anat filename stem.** `110001-20200115_T1w` — subject and date
 embedded, hence globally unique. There is **no central `SUBJECTS_DIR`**; recons are scattered one per
-session. `scripts/freesurfer/make_symlink_farm.py` builds a persistent flat symlink farm precisely to
+session. `pipeline/5_aggregate/freesurfer_symlink.py` builds a persistent flat symlink farm precisely to
 work around this — one symlink per recon, pointing back at the real nested directory — which
 `pipeline/5_aggregate/mri_stats_all.py` then points FreeSurfer's table tools at directly. The same
-pattern applies to SUVR output via `scripts/suvr/make_suvr_symlink_farm.py`.
+pattern applies to SUVR output via `pipeline/5_aggregate/suvr_symlink.py`.
 
 **9. SUVR is a PET × MRI cross-product.** One pair folder per combination, named
 `<subjid>_pet_<PETdate>_mri_<MRIdate>`. Note the pair folders use underscores throughout, unlike the
@@ -173,23 +173,29 @@ symlink farms rather than walking `ADRC/` directly, so build/refresh those first
 to rerun any time, only adds symlinks for new subjects/scans):
 
 ```bash
-python3 scripts/freesurfer/make_symlink_farm.py --source /path/to/ADRC --target /path/to/NWSI/freesurfer
-python3 scripts/suvr/make_suvr_symlink_farm.py  --source /path/to/ADRC --target /path/to/NWSI/suvr
+python3 pipeline/5_aggregate/freesurfer_symlink.py --source /path/to/ADRC --target /path/to/NWSI/freesurfer_link
+python3 pipeline/5_aggregate/suvr_symlink.py       --source /path/to/ADRC --target /path/to/NWSI/suvr_link
 
-python3 pipeline/5_aggregate/mri_stats_all.py  -fd /path/to/NWSI/freesurfer -o mri_output
-python3 pipeline/5_aggregate/suvr_stats_all.py -sd /path/to/NWSI/suvr       -o suvr_output
+python3 pipeline/5_aggregate/mri_stats_all.py  -fd /path/to/NWSI/freesurfer_link -o mri_output
+python3 pipeline/5_aggregate/suvr_stats_all.py -sd /path/to/NWSI/suvr_link       -o suvr_output
+
+# progress check: folders in ADRC/ against entries in the two farms
+python3 pipeline/5_aggregate/directory_data_count.py -i /path/to/NWSI
 ```
 
 ```
 NWSI/
-├── ADRC/           the subject tree
-├── mri_output/     aseg_stats.csv, aparc_volume.csv, aparc_thickness.csv,
-│                   wmparc.csv, hippocampus.csv, amygdala.csv
-└── suvr_output/    suvr_cerebellum.csv, suvr_cerebellum_gm.csv,
-                    suvr_combined_cerebellum.csv, suvr_combined_cerebellum_gm.csv
+├── ADRC/             the subject tree
+├── freesurfer_link/  symlink farm, one link per recon
+├── suvr_link/        symlink farm, one link per PET output folder
+├── suvr_pruned/      registrations moved aside by prune_suvr_registrations.py --quarantine
+├── mri_output/       aseg_stats.csv, aparc_volume.csv, aparc_thickness.csv,
+│                     wmparc.csv, hippocampus.csv, amygdala.csv
+└── suvr_output/      suvr_cerebellum.csv, suvr_cerebellum_gm.csv,
+                      suvr_combined_cerebellum.csv, suvr_combined_cerebellum_gm.csv
 ```
 
-These are the only index artifacts. There is no manifest or participants file inside `ADRC/` itself —
+The two farms and the output tables are the only index artifacts. There is no manifest or participants file inside `ADRC/` itself —
 the directory structure *is* the index.
 
 ---

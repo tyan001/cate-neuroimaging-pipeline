@@ -4,7 +4,7 @@ Aggregate SUVR results for every PET-MRI pair in the flat SUVR symlink farm into
 SINGLE CSV: one row per pair, with centiloid and all ROI SUVR columns taken from
 each res/ folder's combined SUVR summary.
 
-Input layout: a flat symlink farm as built by scripts/suvr/make_suvr_symlink_farm.py --
+Input layout: a flat symlink farm as built by suvr_symlink.py --
 one symlink per '<subjid>-<session>_PET[...]' scan, pointing at the real
 '<root>/<subjid>/<session>/suvr/<PET_dir>/' directory. Each of those in turn holds one
 subfolder per MRI registration target:
@@ -14,12 +14,12 @@ subfolder per MRI registration target:
 
 Build/refresh the farm first if it doesn't exist yet or is out of date:
 
-    python scripts/suvr/make_suvr_symlink_farm.py \
-        --source /path/to/ADRC --target /path/to/NWSI/suvr
+    python suvr_symlink.py \
+        --source /path/to/ADRC --target /path/to/NWSI/suvr_link
 
 Usage:
-    python suvr_stats_all.py -sd /path/to/NWSI/suvr -o suvr_output
-    python suvr_stats_all.py -sd .../NWSI/suvr --pattern suvr_combined_cerebellum   # whole-cerebellum reference
+    python suvr_stats_all.py -sd /path/to/NWSI/suvr_link -o suvr_output
+    python suvr_stats_all.py -sd .../NWSI/suvr_link --pattern suvr_combined_cerebellum   # whole-cerebellum reference
 """
 import argparse
 from pathlib import Path
@@ -167,7 +167,7 @@ def main():
     parser = argparse.ArgumentParser(description="Aggregate SUVR results into per-pattern CSVs.")
     parser.add_argument("-sd", "--suvr-dir", required=True,
                         help="Flat SUVR symlink farm, as built by "
-                             "scripts/suvr/make_suvr_symlink_farm.py (e.g. NWSI/suvr).")
+                             "suvr_symlink.py (e.g. NWSI/suvr_link).")
     parser.add_argument("--pattern", default=None,
                         help="Aggregate only this single pattern instead of all 4 "
                              "(e.g. suvr_combined_cerebellum_gm).")
@@ -179,7 +179,7 @@ def main():
     if not farm_dir.is_dir():
         parser.error(
             f"Invalid SUVR farm directory: {farm_dir}\n"
-            f"Build it first with: python scripts/suvr/make_suvr_symlink_farm.py "
+            f"Build it first with: python suvr_symlink.py "
             f"--source /path/to/ADRC --target {farm_dir}"
         )
 

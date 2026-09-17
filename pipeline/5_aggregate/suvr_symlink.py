@@ -23,7 +23,7 @@ import sys
     aggregation scripts at the flat folder instead of walking the nested
     tree, e.g.:
 
-        for d in /mnt/backup/dev/NWSI/suvr/*/; do
+        for d in /path/to/NWSI/suvr_link/*/; do
             ls "$d"/*/res/*_suvr_cerebellum_gm.csv
         done
 
@@ -50,11 +50,11 @@ import sys
     downstream code can glob into */res/*.csv as needed.
 
     Usage:
-        python make_suvr_symlink_farm.py \\
-            --source /mnt/backup/dev/NWSI/ADRC \\
-            --target /mnt/backup/dev/NWSI/suvr
+        python suvr_symlink.py \\
+            --source /path/to/NWSI/ADRC \\
+            --target /path/to/NWSI/suvr_link
 
-        python make_suvr_symlink_farm.py --source ... --target ... --dry-run
+        python suvr_symlink.py --source ... --target ... --dry-run
 """
 
 
@@ -63,7 +63,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-log = logging.getLogger("make_suvr_symlink_farm")
+log = logging.getLogger("suvr_symlink")
 
 EXCLUDED_NAMES = {"logs"}
 

@@ -2,6 +2,7 @@
 """Summarize NWSI data: modality folder counts under ADRC and processed-output link counts."""
 
 import argparse
+import os
 from pathlib import Path
 
 FOLDER_NAMES = ["anat", "ct", "pet", "modalities"]
@@ -25,12 +26,14 @@ def count_links(link_dir: Path) -> tuple[int, int]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    default_root = os.environ.get("ADRC_ROOT") 
     parser.add_argument(
         "-i", "--input",
         type=Path,
-        default=Path("/mnt/backup/dev/NWSI"),
-        help="NWSI root folder containing ADRC, freesurfer_link and suvr_link "
-             "(default: %(default)s)",
+        default=Path(default_root) if default_root else None,
+        required=default_root is None,
+        help="root folder containing ADRC, freesurfer_link and suvr_link "
+             "(default: $ADRC_ROOT)",
     )
     args = parser.parse_args()
 

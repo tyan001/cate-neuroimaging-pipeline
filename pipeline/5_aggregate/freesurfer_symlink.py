@@ -25,7 +25,7 @@ import sys
     depends on is untouched. Point FreeSurfer's stats tools at the flat
     folder via SUBJECTS_DIR, e.g.:
 
-        export SUBJECTS_DIR=/mnt/backup/dev/NWSI/freesurfer
+        export SUBJECTS_DIR=/path/to/NWSI/freesurfer_link
         asegstats2table --subjects $(ls $SUBJECTS_DIR) -t all_aseg.csv
 
     Subject/session leaf directories are named "<subject>-<session>_<seq>",
@@ -39,11 +39,11 @@ import sys
     name is identical everywhere.
 
     Usage:
-        python make_symlink_farm.py \\
-            --source /mnt/backup/dev/NWSI/ADRC \\
-            --target /mnt/backup/dev/NWSI/freesurfer
+        python freesurfer_symlink.py \\
+            --source /path/to/NWSI/ADRC \\
+            --target /path/to/NWSI/freesurfer_link
 
-        python make_symlink_farm.py --source ... --target ... --dry-run
+        python freesurfer_symlink.py --source ... --target ... --dry-run
 """
 
 
@@ -52,7 +52,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-log = logging.getLogger("make_symlink_farm")
+log = logging.getLogger("freesurfer_symlink")
 
 EXCLUDED_NAMES = {"fsaverage"}
 
