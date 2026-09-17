@@ -57,7 +57,7 @@ jobs:
         run: uv run pytest tests/ingest tests/test_fixture_manifest.py -v
 
       # find_missing, process_missing, merge_batch (needs rsync, which ubuntu-latest has) and directory_data_count
-      - name: Run 7_DirectoryStats tests
+      - name: Run DirectoryStats tests
         run: uv run pytest tests/missing -v
 
       - name: Run QC tests

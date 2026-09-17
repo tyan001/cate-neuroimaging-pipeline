@@ -12,9 +12,13 @@ requires-python = ">=3.12"
 # Version floors, not pins: any recent release works. Exact versions are locked in uv.lock.
 # Everything else the scripts import is in the standard library.
 dependencies = [
+    # read NIfTI/MGH volumes (3_suvr/suvr.py, 4_qc/check_mprage.py, 6_extract/viewer.py)
     "nibabel>=5.0",
+    # per-ROI voxel statistics (3_suvr/suvr.py), viewer volumes (6_extract/viewer.py)
     "numpy>=1.24",
+    # volume tables, SUVR result CSVs, study-level aggregation (3_suvr, 5_aggregate)
     "pandas>=2.0",
+    # progress bars for the parallel SUVR stages
     "tqdm>=4.65",
 ]
 
@@ -24,14 +28,8 @@ dev = [
     "ruff>=0.16",
 ]
 
-[project.scripts]
-cate-neuroimaging-pipeline = "cate_neuroimaging_pipeline:main"
-
-[build-system]
-requires = ["uv_build>=0.12.15,<0.13.0"]
-build-backend = "uv_build"
-
-[tool.uv.workspace]
-members = [
-    "git",
-]
+# The pipeline is a set of standalone scripts run with `python3 pipeline/<stage>/<script>.py`,
+# not an importable package, so there is nothing to build or install. `package = false` keeps
+# `uv sync` to creating the venv and installing the dependencies below.
+[tool.uv]
+package = false
