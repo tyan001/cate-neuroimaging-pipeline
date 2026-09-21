@@ -82,6 +82,7 @@ RUN mkdir -p /workspace
 COPY pipeline/2_freesurfer/ /workspace/freesurfer/
 COPY pipeline/3_suvr/       /workspace/suvr/
 COPY pipeline/4_qc/         /workspace/qc/
+COPY pipeline/5_aggregate/  /workspace/aggregate/
 
 # ---------- Environment ----------
 ENV FSLTCLSH=$FSLDIR/bin/fsltclsh \

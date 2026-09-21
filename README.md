@@ -60,6 +60,18 @@ Read these in order the first time.
 
 ## Quickstart
 
+Two shells are involved, and the commands are **not** interchangeable between them:
+
+| | Where | Paths |
+|---|---|---|
+| 🖥️ **host** | your machine or the server | the repo checkout, real dataset paths like `/data/batch12` |
+| 📦 **container** | a shell inside the running `fs7-fsl` container | scripts under `/workspace/`, the mounted dataset at `/workspace/data` |
+
+Anything that calls FreeSurfer or FSL — `recon-all`, `segmentHA_T1.sh`, `mri_convert`, `flirt` —
+runs in the container. Ingest, QC-by-file-inspection, merging and aggregation run on the host.
+
+### 🖥️ Host — build, organize, launch
+
 ```bash
 git clone <this-repo> && cd cate-neuroimaging-pipeline
 
@@ -70,36 +82,82 @@ docker build -t fs7-fsl -f docker/Dockerfile .
 python3 pipeline/1_ingest/dropbox_mri_to_bids.py /delivery/MRI --target_dir /data/batch12
 python3 pipeline/1_ingest/dropbox_pet_to_bids.py /delivery/PET --target_dir /data/batch12
 
-# 3. Structural processing (days — run under nohup)
+# 3. Start the container and get a shell in it
 python3 pipeline/2_freesurfer/processing_container.py /data/batch12/ADRC --license ~/license.txt
+docker ps                                    # find the generated container name
+docker exec -it <container_name> bash
+```
 
-docker exec -it <container> bash
-  nohup python3 mri_processing.py data/ > processing.log 2>&1 &
+Step 3 bind-mounts `/data/batch12/ADRC` at `/workspace/data` and sets `CPU_CORES` from the scan
+count. The container starts detached and keeps running after you leave the shell.
 
-# 4. QC
-python3 pipeline/4_qc/check_recon_all.py /data/batch12/ADRC
+### 📦 Container — processing
 
-# 5. PET quantification
-python3 pipeline/3_suvr/prepare_suvr_folder.py /data/batch12/ADRC --cores 8
-python3 pipeline/3_suvr/registration.py        /data/batch12/ADRC --cores 8
-python3 pipeline/3_suvr/suvr.py                /data/batch12/ADRC
+Paths below are the container's. `data/` is the dataset you mounted in step 3.
 
-# 6. Merge into the dataset (plan first, then --execute)
-python3 pipeline/7_DirectoryStats/merge_batch.py --source /data/batch12/ADRC --dest /data/NWSI/ADRC 
+```bash
+cd /workspace
+
+# 4. Structural processing (days — nohup so it survives your SSH session closing)
+nohup python3 freesurfer/mri_processing.py data/ > processing.log 2>&1 &
+
+# 5. QC
+python3 qc/check_recon_all.py data/
+
+# 6. PET quantification
+python3 suvr/prepare_suvr_folder.py data/ --cores 8
+python3 suvr/registration.py        data/ --cores 8
+python3 suvr/suvr.py                data/
+```
+
+Leave with `exit` (the container keeps running) or detach with `Ctrl-P Ctrl-Q`.
+
+The QC scripts are pure file inspection, so step 5 also runs on the host as
+`python3 pipeline/4_qc/check_recon_all.py /data/batch12/ADRC` — handy while a long run is still
+going. Steps 4 and 6 do not: they need FreeSurfer and FSL on `PATH`. Run them on the host only if
+you installed both natively, in which case use the `pipeline/...` paths and your real dataset path
+(see [running without Docker](docs/01-environment.md#running-without-docker)).
+
+### 🖥️ Host — merge and aggregate
+
+Back on the host. These stages read and write `/data/NWSI`, which the processing container does
+not mount. One of them still needs FreeSurfer — see step 9b.
+
+```bash
+# 7. Merge into the dataset (plan first, then --execute)
+python3 pipeline/7_DirectoryStats/merge_batch.py --source /data/batch12/ADRC --dest /data/NWSI/ADRC
 python3 pipeline/7_DirectoryStats/merge_batch.py --source /data/batch12/ADRC --dest /data/NWSI/ADRC --execute
 
-# 7. Build the flat symlink farms (safe to rerun; add --dry-run to preview)
+# 8. Build the flat symlink farms (safe to rerun; add --dry-run to preview)
 python3 pipeline/5_aggregate/freesurfer_symlink.py --source /data/NWSI/ADRC --target /data/NWSI/freesurfer_link
 python3 pipeline/5_aggregate/suvr_symlink.py       --source /data/NWSI/ADRC --target /data/NWSI/suvr_link
 
-# 8. Study-level tables (mri_stats_all.py needs FreeSurfer sourced)
-python3 pipeline/5_aggregate/mri_stats_all.py  -ld /data/NWSI/freesurfer_link -o mri_output
-python3 pipeline/5_aggregate/suvr_stats_all.py -ld /data/NWSI/suvr_link       -o suvr_output
+# 9a. SUVR table — pure pandas over the CSVs, no FreeSurfer needed
+python3 pipeline/5_aggregate/suvr_stats_all.py -ld /data/NWSI/suvr_link -o suvr_output
+```
 
-# 9. How much is there, and how much is processed?
+📦 **Step 9b — the MRI table — needs FreeSurfer**, so on a Docker-only host it runs in a container.
+`mri_stats_all.py` shells out to `asegstats2table` and `aparcstats2table`, pointing `SUBJECTS_DIR` at
+the symlink farm. Do **not** launch this one with `processing_container.py`: the farm is built from
+absolute symlinks into `/data/NWSI/ADRC/...`, so the dataset has to be mounted at the *same* path it
+occupies on the host, or every link in the farm dangles.
+
+```bash
+docker run --rm -it \
+    -v /data/NWSI:/data/NWSI \
+    -v ~/license.txt:/usr/local/freesurfer/.license:ro \
+    fs7-fsl bash -lc \
+    'python3 /workspace/aggregate/mri_stats_all.py -ld /data/NWSI/freesurfer_link -o /data/NWSI/mri_output'
+```
+
+`-o` is an absolute path under the mount on purpose — a relative one writes into `/workspace`, which
+dies with the container. With a native FreeSurfer install, run it on the host like step 9a.
+
+```bash
+# 10. How much is there, and how much is processed?
 python3 pipeline/7_DirectoryStats/directory_data_count.py -i /data/NWSI
 
-# 10. Scans that were never processed (new MRI, a PET whose MRI arrived later, ...)
+# 11. Scans that were never processed (new MRI, a PET whose MRI arrived later, ...)
 python3 pipeline/7_DirectoryStats/find_missing.py --root  /data/NWSI/ADRC
 python3 pipeline/7_DirectoryStats/process_missing.py all  /data/NWSI/ADRC --dry-run
 ```
