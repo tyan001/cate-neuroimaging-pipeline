@@ -185,6 +185,8 @@ session names show up here.
 
 ```bash
 python3 mri_site_data.py /path/to/NWSI/freesurfer_link --cores 4 [--force]
+python3 mri_site_data.py /path/to/NWSI/freesurfer_link --status          # converts nothing
+python3 mri_site_data.py /path/to/NWSI/freesurfer_link --status --all --csv done.csv
 # path defaults to /mnt/backup/dev/NWSI/freesurfer_link; a single recon (or its farm link) also works
 ```
 
@@ -192,6 +194,25 @@ Builds the shareable derivative of each recon: `mri/{T1,brain,wm,aparc+aseg}.mgz
 `surf/{lh,rh}.{pial,white}` → GIFTI, written to each session's `sitedata_mri/`. Uses `mri_convert`
 and `mris_convert`. Output still goes next to the real `freesurfer741/` (each link is resolved). Logs go to
 `conversion_logs/` beside the farm (e.g. `NWSI/conversion_logs/`), not inside it.
+
+### Checking what is already done
+
+`--status` answers "which scans has this already converted?" before you spend hours reconverting.
+It writes nothing — no output folders, no log file — and does not need FreeSurfer on PATH, so it
+also runs off-cluster. `--all` also lists the complete scans; `--csv` writes one row per scan.
+
+| State | Meaning | What to do |
+|---|---|---|
+| `complete` | all 8 outputs present and newer than their sources | nothing |
+| `stale` | recon-all was rerun after the conversion | rerun; it reconverts just those files |
+| `partial` | some outputs missing (interrupted run) | rerun; it converts the rest |
+| `not_started` | no outputs yet | rerun |
+| `no_source` | the recon itself lacks a source file | manual — a rerun cannot fix it |
+
+A scan counts as converted only while its output is at least as new as the recon it came from, so a
+rerun recon-all correctly shows up as `stale` instead of silently passing as done. The report and
+the conversion share one `needs_conversion()` rule, so what `--status` forecasts is exactly what a
+rerun does — the closing line predicts the file and scan counts.
 
 Regenerable at any time from the recon, so it is the first thing to delete if space is tight.
 

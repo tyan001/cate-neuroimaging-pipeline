@@ -72,6 +72,7 @@ python3 pipeline/1_ingest/dropbox_pet_to_bids.py /delivery/PET --target_dir /dat
 
 # 3. Structural processing (days — run under nohup)
 python3 pipeline/2_freesurfer/processing_container.py /data/batch12/ADRC --license ~/license.txt
+
 docker exec -it <container> bash
   nohup python3 mri_processing.py data/ > processing.log 2>&1 &
 
@@ -84,26 +85,21 @@ python3 pipeline/3_suvr/registration.py        /data/batch12/ADRC --cores 8
 python3 pipeline/3_suvr/suvr.py                /data/batch12/ADRC
 
 # 6. Merge into the dataset (plan first, then --execute)
-python3 pipeline/7_DirectoryStats/merge_batch.py --source /data/batch12/ADRC --dest /data/NWSI/ADRC
+python3 pipeline/7_DirectoryStats/merge_batch.py --source /data/batch12/ADRC --dest /data/NWSI/ADRC 
 python3 pipeline/7_DirectoryStats/merge_batch.py --source /data/batch12/ADRC --dest /data/NWSI/ADRC --execute
 
-# 7. Keep only the MRI registration closest in time to each PET (dry run first)
-python3 pipeline/5_aggregate/prune_suvr_registrations.py --source /data/NWSI/ADRC
-python3 pipeline/5_aggregate/prune_suvr_registrations.py --source /data/NWSI/ADRC \
-        --execute --quarantine /data/NWSI/suvr_pruned
-
-# 8. Build the flat symlink farms (safe to rerun; add --dry-run to preview)
+# 7. Build the flat symlink farms (safe to rerun; add --dry-run to preview)
 python3 pipeline/5_aggregate/freesurfer_symlink.py --source /data/NWSI/ADRC --target /data/NWSI/freesurfer_link
 python3 pipeline/5_aggregate/suvr_symlink.py       --source /data/NWSI/ADRC --target /data/NWSI/suvr_link
 
-# 9. Study-level tables (mri_stats_all.py needs FreeSurfer sourced)
+# 8. Study-level tables (mri_stats_all.py needs FreeSurfer sourced)
 python3 pipeline/5_aggregate/mri_stats_all.py  -ld /data/NWSI/freesurfer_link -o mri_output
 python3 pipeline/5_aggregate/suvr_stats_all.py -ld /data/NWSI/suvr_link       -o suvr_output
 
-# 10. How much is there, and how much is processed?
+# 9. How much is there, and how much is processed?
 python3 pipeline/7_DirectoryStats/directory_data_count.py -i /data/NWSI
 
-# 11. Scans that were never processed (new MRI, a PET whose MRI arrived later, ...)
+# 10. Scans that were never processed (new MRI, a PET whose MRI arrived later, ...)
 python3 pipeline/7_DirectoryStats/find_missing.py --root  /data/NWSI/ADRC
 python3 pipeline/7_DirectoryStats/process_missing.py all  /data/NWSI/ADRC --dry-run
 ```

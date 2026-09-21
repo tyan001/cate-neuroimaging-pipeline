@@ -167,6 +167,17 @@ python3 pipeline/5_aggregate/mri_site_data.py /path/to/ADRC --cores 4
 Converts `mri/{T1,brain,wm,aparc+aseg}.mgz` → NIfTI and `surf/{lh,rh}.{pial,white}` → GIFTI, writing
 into each session's `sitedata_mri/`. Use `--force` to regenerate.
 
+To see which scans are already converted before starting a long run:
+
+```bash
+python3 pipeline/5_aggregate/mri_site_data.py /path/to/ADRC --status
+```
+
+This changes nothing and needs no FreeSurfer. It reports each scan as `complete`, `stale`,
+`partial`, `not_started` or `no_source`, and ends with the exact number of files a rerun would
+convert. `stale` means recon-all ran again after the conversion, so the derivative no longer matches
+its recon — a plain rerun reconverts those files. See `pipeline/5_aggregate/README.md`.
+
 ### Study-level tables
 
 Two scripts collapse the whole tree into flat CSVs, written outside `ADRC/`. Both read from flat
