@@ -46,7 +46,7 @@ image, never committed.
 
 ```bash
 # inside the container
-nohup python3 run_pipeline.py data/ > processing.log 2>&1 &
+nohup python3 freesurfer/mri_processing.py data/ > processing.log 2>&1 &
 ```
 
 Information of the hippocampus segmentation in this codebase can be found at [https://surfer.nmr.mgh.harvard.edu/fswiki/HippocampalSubfieldsAndNuclei](https://surfer.nmr.mgh.harvard.edu/fswiki/HippocampalSubfieldsAndNuclei).

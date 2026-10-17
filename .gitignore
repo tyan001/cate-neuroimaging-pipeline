@@ -23,6 +23,7 @@ suvr_output/
 *dev/
 pytest.ini
 *archive/
+*Guide
 
 # ---------------------------------------------------------------------------
 # Run artifacts

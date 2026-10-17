@@ -23,11 +23,11 @@ Full walkthrough: [docs/02-mri-processing.md](../../docs/02-mri-processing.md#st
 python3 download.py links.csv --type MRI|PET [--output-dir /path/to/batch]
 ```
 
-Writes into a `<type>` subfolder (`MRI/` or `PET/`) under `--output-dir`, or the current directory
-if omitted.
+Writes into a `<type>` subfolder (`MRI/` or `PET/`) under `--output-dir`, or the directory
+containing the CSV file if omitted.
 
 CSV needs `name` and `link` columns — see [examples/dropbox_links.csv](../../examples/dropbox_links.csv).
-Downloads with `curl`, unzips, deletes the archive. Output goes to `<csv_dir>/MRI/` or `<csv_dir>/PET/`.
+Downloads with `curl`, unzips, deletes the archive.
 
 ## unzip_files.sh
 

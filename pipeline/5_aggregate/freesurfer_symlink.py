@@ -39,11 +39,11 @@ import sys
     name is identical everywhere.
 
     Usage:
-        python freesurfer_symlink.py \\
+        python3 freesurfer_symlink.py \\
             --source /path/to/NWSI/ADRC \\
             --target /path/to/NWSI/freesurfer_link
 
-        python freesurfer_symlink.py --source ... --target ... --dry-run
+        python3 freesurfer_symlink.py --source ... --target ... --dry-run
 """
 
 

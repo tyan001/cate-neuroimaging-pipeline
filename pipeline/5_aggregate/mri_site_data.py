@@ -4,6 +4,10 @@
     python3 mri_site_data.py /path/to/NWSI/freesurfer_link --cores 4 [--force]
     python3 mri_site_data.py /path/to/NWSI/freesurfer_link --status         # what is done, converts nothing
     python3 mri_site_data.py /path/to/NWSI/freesurfer_link --status --all --csv done.csv
+    python3 mri_site_data.py /path/to/NWSI/freesurfer_link -o /path/to/sitedata --cores 4
+
+Without -o each derivative lands in its session, beside freesurfer741/. With -o it goes to
+<out>/<subject>/<session>/{mri,surf}/ instead, a tree that holds nothing but the shareable files.
 
 --status answers "which scans has this already done?" without touching anything. It and the
 conversion share scan_status()/needs_conversion(), so the report always matches what a rerun does.
@@ -241,43 +245,58 @@ def log_writer(log_queue, log_file):
 # ---- locating recons ---------------------------------------------------
 
 
-def resolve_subject(input_path, output_folder_name):
+def resolve_subject(input_path, output_folder_name, output_root=None):
     """(fs_dir, scan, output_path) for one recon directory or farm link, or None if it is not one.
 
-    Follows a farm symlink to the real recon so the output lands next to its freesurfer741.
+    Follows a farm symlink to the real recon, <root>/<subjid>/<session>/freesurfer741/<recon>.
+    Without output_root the output lands next to that freesurfer741; with it, the output goes to
+    <output_root>/<subjid>/<session>/.
     """
     real_path = os.path.realpath(input_path)
     fs_dir = os.path.dirname(real_path)
     if os.path.basename(fs_dir) != FREESURFER_DIRNAME:
         return None
-    output_path = os.path.join(os.path.dirname(fs_dir), output_folder_name)
+    session_dir = os.path.dirname(fs_dir)
+    if output_root:
+        subject = os.path.basename(os.path.dirname(session_dir))
+        output_path = os.path.join(output_root, subject, os.path.basename(session_dir))
+    else:
+        output_path = os.path.join(session_dir, output_folder_name)
     return fs_dir, os.path.basename(real_path), output_path
 
 
-def find_subjects(farm_path, output_folder_name, warn):
+def find_subjects(farm_path, output_folder_name, warn, output_root=None):
     """(fs_dir, scan, output_path) for every recon in the symlink farm. Creates nothing.
 
-    Each farm entry is a symlink to <root>/<subjid>/<session>/freesurfer741/<recon>; it is resolved
-    so the output folder is still a sibling of freesurfer741.
+    Each farm entry is resolved to its real recon, so the output path comes from the real
+    subject/session, not from the link name. Two recons that would share an output folder
+    (two recons in one session) are ambiguous: only the first is kept.
     """
     subjects = []
+    claimed = {}
     for entry in sorted(os.listdir(farm_path)):
         link_path = os.path.join(farm_path, entry)
         if not os.path.isdir(link_path):
             warn(f"  WARNING: skipping {entry} (broken symlink or not a directory)")
             continue
-        resolved = resolve_subject(link_path, output_folder_name)
+        resolved = resolve_subject(link_path, output_folder_name, output_root)
         if resolved is None:
             warn(f"  WARNING: skipping {entry} "
                  f"({os.path.realpath(link_path)} is not inside a {FREESURFER_DIRNAME} directory)")
             continue
+        output_path = resolved[2]
+        if output_path in claimed:
+            warn(f"  WARNING: skipping {entry} ({output_path} is already the output of {claimed[output_path]})")
+            continue
+        claimed[output_path] = entry
         subjects.append(resolved)
     return subjects
 
 
-def process_specific_subject(subject_path, output_folder_name, force_reconversion, log_queue):
+def process_specific_subject(subject_path, output_folder_name, force_reconversion, log_queue,
+                             output_root=None):
     """Process a single specific subject."""
-    resolved = resolve_subject(subject_path, output_folder_name)
+    resolved = resolve_subject(subject_path, output_folder_name, output_root)
     if resolved is None:
         log_queue.put(f"ERROR: {subject_path} is not a subject directory "
                       f"within a {FREESURFER_DIRNAME} directory")
@@ -329,19 +348,22 @@ def write_status_csv(records, csv_path):
     print(f"Wrote {csv_path}")
 
 
-def run_status(input_path, is_specific_subject, output_folder_name, show_all, csv_path):
+def run_status(input_path, is_specific_subject, output_folder_name, show_all, csv_path,
+               output_root=None):
     """--status: report only, so no FreeSurfer, no output folders and no log file."""
     if is_specific_subject:
-        resolved = resolve_subject(input_path, output_folder_name)
+        resolved = resolve_subject(input_path, output_folder_name, output_root)
         if resolved is None:
             print(f"ERROR: {input_path} is not a subject directory "
                   f"within a {FREESURFER_DIRNAME} directory", file=sys.stderr)
             return 1
         subjects = [resolved]
     else:
-        subjects = find_subjects(input_path, output_folder_name, warn=print)
+        subjects = find_subjects(input_path, output_folder_name, warn=print, output_root=output_root)
 
     print(f"Input path: {input_path}")
+    if output_root:
+        print(f"Output root: {output_root}")
     records = [scan_status(scan, os.path.join(fs_dir, scan), output_path)
                for fs_dir, scan, output_path in subjects]
     report_status(records, output_folder_name, show_all)
@@ -357,8 +379,11 @@ def main():
     parser.add_argument('path', nargs='?', default=DEFAULT_LINK_DIR,
                         help='Flat FreeSurfer symlink farm as built by freesurfer_symlink.py, '
                              f'or a specific subject directory / farm link (default: {DEFAULT_LINK_DIR})')
-    parser.add_argument('--output_name', help='Name of the output folder (sibling to freesurfer741)',
-                        default='sitedata_mri')
+    parser.add_argument('--output_name', help='Name of the output folder (sibling to freesurfer741); '
+                                              'ignored with -o', default='sitedata_mri')
+    parser.add_argument('-o', '--output-dir', type=Path,
+                        help='Write to <output-dir>/<subject>/<session>/ instead of into each session. '
+                             'Created if missing; an existing one is reused and up-to-date files are skipped')
     parser.add_argument('--cores', type=int, help='Number of parallel processes to use', default=1)
     parser.add_argument('--force', action='store_true',
                         help='Force reconversion even if output files are already up to date')
@@ -374,6 +399,15 @@ def main():
 
     input_path = os.path.abspath(args.path.rstrip('/'))
     output_folder_name = args.output_name
+    output_root = None
+    if args.output_dir:
+        output_root = os.path.abspath(args.output_dir)
+        if os.path.exists(output_root) and not os.path.isdir(output_root):
+            print(f"ERROR: {output_root} exists and is not a directory")
+            return 1
+        if os.path.realpath(output_root).startswith(os.path.realpath(input_path) + os.sep):
+            print(f"ERROR: {output_root} is inside {input_path}; the farm must stay links-only")
+            return 1
     num_processes = args.cores or max(1, multiprocessing.cpu_count() - 1)  # Default: all cores except one
     force_reconversion = args.force
 
@@ -386,14 +420,18 @@ def main():
         return 1
 
     if args.status:
-        return run_status(input_path, is_specific_subject, output_folder_name, args.all, args.csv)
+        return run_status(input_path, is_specific_subject, output_folder_name, args.all, args.csv,
+                          output_root)
 
     # Check if FreeSurfer is initialized
     if not check_freesurfer():
         return 1
 
     # Set up log directory
-    if is_specific_subject:
+    if output_root:
+        os.makedirs(output_root, exist_ok=True)
+        base_log_dir = os.path.join(output_root, "conversion_logs")
+    elif is_specific_subject:
         # For a specific subject, place logs in the session directory (grandparent of the real recon)
         base_log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(input_path))),
                                     "conversion_logs")
@@ -419,7 +457,10 @@ def main():
     start_time = datetime.datetime.now()
     log_queue.put(f"Starting FreeSurfer conversion process at {start_time}")
     log_queue.put(f"Input path: {input_path}")
-    log_queue.put(f"Output folder name: {output_folder_name}")
+    if output_root:
+        log_queue.put(f"Output root: {output_root} (<subject>/<session>/ per scan)")
+    else:
+        log_queue.put(f"Output folder name: {output_folder_name}")
 
     # Process either a specific subject or scan for all subjects
     if is_specific_subject:
@@ -427,7 +468,8 @@ def main():
         log_queue.put(f"Force reconversion: {force_reconversion}")
         log_queue.put("")
 
-        result = process_specific_subject(input_path, output_folder_name, force_reconversion, log_queue)
+        result = process_specific_subject(input_path, output_folder_name, force_reconversion, log_queue,
+                                          output_root)
         results = [result]
         subject_count = 1
     else:
@@ -438,7 +480,8 @@ def main():
 
         all_subjects = [(fs_dir, scan, output_path, force_reconversion)
                         for fs_dir, scan, output_path in
-                        find_subjects(input_path, output_folder_name, warn=log_queue.put)]
+                        find_subjects(input_path, output_folder_name, warn=log_queue.put,
+                                      output_root=output_root)]
         log_queue.put(f"Found {len(all_subjects)} subjects to process")
         subject_count = len(all_subjects)
 

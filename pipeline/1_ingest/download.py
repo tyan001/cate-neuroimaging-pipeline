@@ -6,11 +6,11 @@ CSV must have columns: 'name' and 'link'
 Each row will be downloaded as: <name>.zip
 
 A '<scan-type>' subfolder is created under the output location and each zip is
-extracted into it. By default the output location is the current directory (wherever
-the script is run from) -- pass --output-dir to write somewhere else instead.
+extracted into it. By default the output location is the directory containing the CSV
+file -- pass --output-dir to write somewhere else instead.
 
 Usage:
-    python3 download.py links.csv --type MRI                              # writes to ./MRI
+    python3 download.py links.csv --type MRI                              # writes to <csv dir>/MRI
     python3 download.py links.csv --type MRI --output-dir /data/batch12   # writes to /data/batch12/MRI
 """
 
@@ -22,9 +22,7 @@ from pathlib import Path
 
 
 def download_from_csv(csv_path: str, scan_type: str = "MRI", output_dir: str = None):
-    
-    
-    output = Path(output_dir if output_dir is not None else Path.cwd()) / scan_type
+    output = Path(output_dir if output_dir is not None else Path(csv_path).resolve().parent) / scan_type
     output.mkdir(parents=True, exist_ok=True)
 
     with open(csv_path, newline="") as f:
@@ -70,7 +68,7 @@ if __name__ == "__main__":
     parser.add_argument("csv_file", help="Path to the CSV file with 'name' and 'link' columns")
     parser.add_argument("--type", choices=["MRI", "PET"], required=True, help="Type of scan: MRI or PET")
     parser.add_argument("-o", "--output-dir", default=None,
-                        help="Where to create the '<type>' output subfolder (default: current directory)")
+                        help="Where to create the '<type>' output subfolder (default: directory containing the CSV file)")
     args = parser.parse_args()
 
     download_from_csv(args.csv_file, args.type, args.output_dir)

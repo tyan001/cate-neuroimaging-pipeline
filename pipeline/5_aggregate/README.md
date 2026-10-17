@@ -187,6 +187,7 @@ session names show up here.
 python3 mri_site_data.py /path/to/NWSI/freesurfer_link --cores 4 [--force]
 python3 mri_site_data.py /path/to/NWSI/freesurfer_link --status          # converts nothing
 python3 mri_site_data.py /path/to/NWSI/freesurfer_link --status --all --csv done.csv
+python3 mri_site_data.py /path/to/NWSI/freesurfer_link -o /path/to/NWSI/sitedata --cores 4
 # path defaults to /mnt/backup/dev/NWSI/freesurfer_link; a single recon (or its farm link) also works
 ```
 
@@ -194,6 +195,12 @@ Builds the shareable derivative of each recon: `mri/{T1,brain,wm,aparc+aseg}.mgz
 `surf/{lh,rh}.{pial,white}` → GIFTI, written to each session's `sitedata_mri/`. Uses `mri_convert`
 and `mris_convert`. Output still goes next to the real `freesurfer741/` (each link is resolved). Logs go to
 `conversion_logs/` beside the farm (e.g. `NWSI/conversion_logs/`), not inside it.
+
+With `-o DIR` the output goes to `DIR/<subject>/<session>/{mri,surf}/` instead, and logs go to
+`DIR/conversion_logs/`. The subject and session come from the real recon path, not the link name.
+`DIR` is created if missing. If it already exists it is reused, and files that are still up to date are
+skipped, so a rerun only fills in the gaps. `--status -o DIR` reports against that tree. If one
+session has two recons, both would need the same output folder, so the second is skipped with a warning.
 
 ### Checking what is already done
 

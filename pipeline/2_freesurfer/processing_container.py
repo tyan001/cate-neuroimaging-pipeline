@@ -33,6 +33,10 @@ def run_docker_container(cpu_count, directory, container_name, image, license_pa
         'docker', 'run', '-d', '-it',
         '--cpus', str(cpu_count),
         '--name', full_name,
+        # Run as the host user so files written to the bind mount aren't root-owned
+        '--user', f'{os.getuid()}:{os.getgid()}',
+        # The host UID has no home in the image; tools (e.g. MATLAB runtime) need a writable HOME
+        '-e', 'HOME=/tmp',
         '-e', f'CPU_CORES={cpu_count}',
         '-e', f'CONTAINER_NAME={directory.name}',
         '-v', f'{directory}:/workspace/data',
@@ -46,7 +50,8 @@ def run_docker_container(cpu_count, directory, container_name, image, license_pa
 
 def check_license(custom_license_path=None):
     if custom_license_path:
-        license_path = Path(custom_license_path)
+        # docker -v needs an absolute host path; a relative one is parsed as a volume name
+        license_path = Path(custom_license_path).resolve()
     else:
         # Get the directory where the script is located
         script_dir = Path(os.path.dirname(os.path.abspath(__file__)))

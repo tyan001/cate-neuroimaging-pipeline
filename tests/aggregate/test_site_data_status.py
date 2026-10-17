@@ -222,3 +222,49 @@ def test_csv_without_status_is_rejected(farm, monkeypatch):
     with pytest.raises(SystemExit) as exc:
         msd.main()
     assert exc.value.code == 2
+
+
+# --- -o / --output-dir ---------------------------------------------------------------------------
+
+
+def test_output_root_mirrors_subject_and_session(farm, tmp_path):
+    out = tmp_path / "sitedata"
+    subjects = msd.find_subjects(str(farm), "sitedata_mri", warn=lambda _m: None, output_root=str(out))
+
+    assert [Path(o) for _fs, _scan, o in subjects] == [out / "900401/20240101", out / "900402/20200101"]
+    assert not out.exists()  # finding creates nothing
+
+
+def test_output_root_skips_a_second_recon_in_the_same_session(farm, tmp_path):
+    extra = make_recon(tmp_path / "ADRC", "900401", "20240101", "900401-20240101_T1w_rerun")
+    (farm / extra.name).symlink_to(extra)
+
+    warnings = []
+    subjects = msd.find_subjects(str(farm), "sitedata_mri", warn=warnings.append,
+                                 output_root=str(tmp_path / "sitedata"))
+    assert [scan for _fs, scan, _o in subjects] == ["900401-20240101_T1w", "900402-20200101_CorMPRAGE"]
+    assert any("900401-20240101_T1w_rerun" in w and "already the output of" in w for w in warnings)
+
+
+def test_status_reads_an_existing_output_root(farm, tmp_path, capsys, monkeypatch):
+    out = tmp_path / "sitedata"
+    recon = tmp_path / "ADRC/900402/20200101/freesurfer741/900402-20200101_CorMPRAGE"
+    convert_all(recon, out / "900402/20200101", age=10)
+
+    monkeypatch.setattr(sys, "argv", ["mri_site_data.py", str(farm), "-o", str(out), "--status", "--all"])
+    assert msd.main() == 0
+    report = capsys.readouterr().out
+    # The in-session sitedata_mri of 900401 does not count toward -o.
+    assert "900402-20200101_CorMPRAGE   8/8 converted" in report
+    assert "900401-20240101_T1w   0/8 converted" in report
+
+
+def test_output_root_that_is_a_file_is_rejected(farm, tmp_path, monkeypatch):
+    out = write(tmp_path, "not_a_dir")
+    monkeypatch.setattr(sys, "argv", ["mri_site_data.py", str(farm), "-o", str(out), "--status"])
+    assert msd.main() == 1
+
+
+def test_output_root_inside_the_farm_is_rejected(farm, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["mri_site_data.py", str(farm), "-o", str(farm / "out"), "--status"])
+    assert msd.main() == 1

@@ -136,22 +136,16 @@ python3 pipeline/5_aggregate/suvr_symlink.py       --source /data/NWSI/ADRC --ta
 python3 pipeline/5_aggregate/suvr_stats_all.py -ld /data/NWSI/suvr_link -o suvr_output
 ```
 
-📦 **Step 9b — the MRI table — needs FreeSurfer**, so on a Docker-only host it runs in a container.
-`mri_stats_all.py` shells out to `asegstats2table` and `aparcstats2table`, pointing `SUBJECTS_DIR` at
-the symlink farm. Do **not** launch this one with `processing_container.py`: the farm is built from
-absolute symlinks into `/data/NWSI/ADRC/...`, so the dataset has to be mounted at the *same* path it
-occupies on the host, or every link in the farm dangles.
+### 📦 Container — processing
+
+Paths below are the container's. `data/` is the dataset you mounted in step 3.
 
 ```bash
-docker run --rm -it \
-    -v /data/NWSI:/data/NWSI \
-    -v ~/license.txt:/usr/local/freesurfer/.license:ro \
-    fs7-fsl bash -lc \
-    'python3 /workspace/aggregate/mri_stats_all.py -ld /data/NWSI/freesurfer_link -o /data/NWSI/mri_output'
+python3 /workspace/aggregate/mri_stats_all.py -ld /data/NWSI/freesurfer_link -o /data/NWSI/mri_output'
 ```
 
-`-o` is an absolute path under the mount on purpose — a relative one writes into `/workspace`, which
-dies with the container. With a native FreeSurfer install, run it on the host like step 9a.
+
+### 🖥️ Host : Other checks and statistics
 
 ```bash
 # 10. How much is there, and how much is processed?
@@ -212,7 +206,7 @@ Both jobs install with `uv sync --locked`, so CI fails if `uv.lock` is out of da
 | [`pipeline/2_freesurfer/`](pipeline/2_freesurfer/) | `recon-all` + hippocampal segmentation; container launcher |
 | [`pipeline/3_suvr/`](pipeline/3_suvr/) | PET–MRI pairing, FLIRT registration, SUVR + Centiloid |
 | [`pipeline/4_qc/`](pipeline/4_qc/) | Completeness and error checks |
-| [`pipeline/5_aggregate/`](pipeline/5_aggregate/) | SUVR pruning, symlink farms, study-level stats tables, dataset counts |
+| [`pipeline/5_aggregate/`](pipeline/5_aggregate/) | symlink farms, study-level stats tables, dataset counts |
 | [`pipeline/6_extract/`](pipeline/6_extract/) | Find and view scans by subject and date |
 | [`pipeline/7_DirectoryStats/`](pipeline/7_DirectoryStats/) | Dataset counts; checked batch merges (`merge_batch.py`); find MRI/PET scans that were never processed, and process just those |
 | [`sync/`](sync/) | Append-only rsync merges into the assembled dataset |
