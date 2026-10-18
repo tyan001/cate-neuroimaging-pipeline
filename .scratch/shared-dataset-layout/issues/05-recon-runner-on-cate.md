@@ -15,3 +15,4 @@
 - [ ] One MRI per valid Session is processed; a Session with both T1w and CorMPRAGE is reported as a problem, not processed twice
 - [ ] Problem Sessions are logged and skipped
 - [ ] Commands issued for valid Sessions are identical to before
+- [ ] The FreeSurfer stage README says what production actually does: launch the container, then run the original single-file recon runner inside it. The split runner under `dev/` is unfinished and kept for reference only (the README currently says the reverse).
