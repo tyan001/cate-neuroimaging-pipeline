@@ -28,8 +28,8 @@ See [04-data-organization.md](04-data-organization.md#storage-planning).
 
 ## Build the image
 
-Build **from the repository root**, not from `docker/` — the Dockerfile copies `requirements.txt` and
-`pipeline/`, so the build context must be the root:
+Build **from the repository root**, not from `docker/` — the Dockerfile copies `requirements.txt`,
+`pyproject.toml`, `cate/` and `pipeline/`, so the build context must be the root:
 
 ```bash
 cd cate-neuroimaging-pipeline
@@ -52,6 +52,7 @@ docker images | grep fs7-fsl
 | FreeSurfer 7.4.1 | `/usr/local/freesurfer` | `recon-all`, `mri_convert`, `*stats2table` |
 | MCR R2019b | `$FREESURFER_HOME/MCRv97` | **Required by `segmentHA_T1.sh`** — hippocampal subfield segmentation is a compiled MATLAB program and silently fails without it |
 | Python packages | `nibabel`, `numpy`, `pandas`, `tqdm` | The SUVR and aggregation stages |
+| `cate` package | `/opt/cate`, installed editable | The shared ADRC tree layout: scan and Pair folder names, Sessions, Pairing |
 | Pipeline scripts | `/workspace/`, `/workspace/suvr/`, `/workspace/qc/` | Copied as directories, so `FreesurferLUTR.txt` comes along |
 
 The CUDA/cuDNN/TensorRT libraries and FSL's source and docs are deleted after install to keep the
@@ -139,6 +140,15 @@ source $FSLDIR/etc/fslconf/fsl.sh
 
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+pip install -e .                                 # the cate package, from the repo root
+```
+
+`cate` is the shared ADRC tree layout. Once installed, it imports from any directory. Its tests need
+no FreeSurfer, FSL or images:
+
+```bash
+pip install -e ".[test]"
+pytest
 ```
 
 `FREESURFER_HOME` and `FSLDIR` are read by `prepare_suvr_folder.py` and `registration.py`

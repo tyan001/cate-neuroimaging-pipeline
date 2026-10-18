@@ -4,7 +4,7 @@ Cheat sheet. Full explanation in [docs/01-environment.md](../docs/01-environment
 
 ## Build
 
-From the **repository root** — the Dockerfile copies `requirements.txt` and `pipeline/`, so the build
+From the **repository root** — the Dockerfile copies `requirements.txt`, `cate/` and `pipeline/`, so the build
 context must be the root:
 
 ```bash

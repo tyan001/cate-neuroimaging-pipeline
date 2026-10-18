@@ -75,6 +75,13 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install --no-cache-dir -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
 
+# ---------- cate package ----------
+# The shared ADRC tree layout. Editable, as on the host, so every stage
+# imports it from wherever it runs.
+COPY pyproject.toml /opt/cate/pyproject.toml
+COPY cate/          /opt/cate/cate/
+RUN pip3 install --no-cache-dir -e /opt/cate
+
 # ---------- Pipeline scripts ----------
 # Directory copies (not globs) so data files such as FreesurferLUTR.txt,
 # which suvr.py loads from its own directory, actually land in the image.

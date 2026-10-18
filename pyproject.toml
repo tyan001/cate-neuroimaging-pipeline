@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cate"
+version = "0.1.0"
+description = "The shared layout of the ADRC tree: scan and Pair folder names, Sessions, problems and Pairing."
+requires-python = ">=3.9"
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[tool.setuptools]
+packages = ["cate"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

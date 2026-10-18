@@ -24,19 +24,31 @@
 
 **Status:** ready-for-agent
 
-- [ ] `pip install -e .` works, and `import cate` succeeds from outside the repo
-- [ ] Docker image installs the package
-- [ ] No Python 3.11-only features used
-- [ ] `pytest` runs from a top-level `tests` folder on any OS, with no FreeSurfer, FSL or real images; tests build temporary trees of empty files
-- [ ] Tests go through the public interface only, covering:
-  - [ ] `logs` and `fs_logs` excluded; non-date folders ignored
-  - [ ] MRI-only Session is valid; PET-only Session is valid; a Session holding both MRI and PET is valid and pairs with itself (gap 0)
-  - [ ] A PET pairs with a closer MRI dated after it, from another Session
-  - [ ] A Subject's own `logs/` folder (beside its Sessions) is ignored
-  - [ ] CorMPRAGE used when there is no T1w; PET variant suffixes recognized
-  - [ ] two MRIs, two PETs, wrong-date scan and bad name each reported as a problem
-  - [ ] Pairing across Sessions; 365 days pairs; 366 days is over one year
-  - [ ] No MRI result; tie reported as a problem
-  - [ ] Pair folder names identical to today's format; names survive a round trip from parse to build
-  - [ ] Existing Pair folders listed with their gap
-- [ ] Nothing in the unfinished `dev/` folders is imported or edited
+- [x] `pip install -e .` works, and `import cate` succeeds from outside the repo
+- [ ] Docker image installs the package (Dockerfile step added; image not built yet)
+- [x] No Python 3.11-only features used
+- [x] `pytest` runs from a top-level `tests` folder on any OS, with no FreeSurfer, FSL or real images; tests build temporary trees of empty files
+- [x] Tests go through the public interface only, covering:
+  - [x] `logs` and `fs_logs` excluded; non-date folders ignored
+  - [x] MRI-only Session is valid; PET-only Session is valid; a Session holding both MRI and PET is valid and pairs with itself (gap 0)
+  - [x] A PET pairs with a closer MRI dated after it, from another Session
+  - [x] A Subject's own `logs/` folder (beside its Sessions) is ignored
+  - [x] CorMPRAGE used when there is no T1w; PET variant suffixes recognized
+  - [x] two MRIs, two PETs, wrong-date scan and bad name each reported as a problem
+  - [x] Pairing across Sessions; 365 days pairs; 366 days is over one year
+  - [x] No MRI result; tie reported as a problem
+  - [x] Pair folder names identical to today's format; names survive a round trip from parse to build
+  - [x] Existing Pair folders listed with their gap
+- [x] Nothing in the unfinished `dev/` folders is imported or edited
+
+## Comments
+
+**2026-10-18, implementation.** `cate/names.py` and `cate/layout.py`, with 75 tests in `tests/`, passing on Python 3.9 and 3.10. `requires-python` is `>=3.9` because the README already promises 3.9+. The Docker step (`COPY` to `/opt/cate`, `pip3 install -e`) was checked with pip 22.0.2 on 3.10, the versions jammy ships, but the image itself was not built.
+
+Choices the spec left open:
+- An eight-digit folder that is not a real date (e.g. `20251399`) is reported as a problem, not silently ignored.
+- A tie is a problem even when both MRIs are over a year away. It is checked before the one-year limit.
+- `existing_pair_folders()` lists Pair folders under problem Sessions too, so no existing result is hidden.
+- A Session with both T1w and CorMPRAGE uses the T1w; this is not a problem.
+- As today, a PET type without an underscore (`_PET128a`) gets a PET folder named `_PET`. The variant text is lost, exactly as `create_suvr_structure()` does now.
+- Subject IDs containing `_` do not parse, so Pair folder names can always be read back.

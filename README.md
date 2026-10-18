@@ -113,7 +113,7 @@ python3 pipeline/5_aggregate/suvr_stats_all.py -rd /data/NWSI/ADRC -o suvr_outpu
 | **FreeSurfer 7.4.1** | `recon-all`, `segmentHA_T1.sh`, `mri_convert`, `*stats2table`. Needs a free [license](https://surfer.nmr.mgh.harvard.edu/registration.html). |
 | **MATLAB Runtime R2019b** | Required by `segmentHA_T1.sh`. Installed by the Dockerfile. |
 | **FSL** | `flirt`, for PET→MRI registration. |
-| **Python 3.9+** | `nibabel`, `numpy`, `pandas`, `tqdm` — see [`requirements.txt`](requirements.txt). |
+| **Python 3.9+** | `nibabel`, `numpy`, `pandas`, `tqdm` — see [`requirements.txt`](requirements.txt). The shared `cate` layout package: `pip install -e .` from the repo root. |
 | **Docker** | Optional but recommended; the image provides all of the above. |
 
 Environment variables: `FREESURFER_HOME`, `FSLDIR`, `CPU_CORES` (parallel job count, set
