@@ -40,7 +40,7 @@ from functools import partial
     Multiple subjects can be processed in parallel (based on CPU_CORES environment variable), but each individual subject's processing is sequential (FreeSurfer then hippocampus).
 
     
-    nohup python3 mri_processing.py data/ADRC/ > processing.log 2>&1 &
+    nohup python3 mri_processing.py data/ > processing.log 2>&1 &
     """
 
 def setup_logger(log_file):

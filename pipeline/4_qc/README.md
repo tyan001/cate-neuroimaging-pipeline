@@ -44,8 +44,12 @@ Missing output here usually means the MATLAB Runtime is absent or `LD_LIBRARY_PA
 
 ## check_mri_missing_processing.py
 
+> **Takes the PARENT of the dataset root**, unlike every other script here. It globs `**/ADRC`, so
+> pointing it at the `ADRC` directory itself prints "No ADRC folders found" and exits successfully —
+> an easy silent no-op to miss.
+
 ```bash
-python3 check_mri_missing_processing.py /path/to/ADRC
+python3 check_mri_missing_processing.py /path/to        # NOT /path/to/ADRC
 ```
 
 Per subject and session, flags sessions with no `anat/` at all, and sessions that have an `anat/` but

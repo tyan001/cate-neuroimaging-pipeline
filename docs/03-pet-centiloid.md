@@ -40,7 +40,7 @@ Produces:
 
 ```
 <target>/ADRC/<subjid>/<YYYYMMDD>/
-├── pet/  <subjid>-<YYYYMMDD>_PET.nii
+├── pet/  <subjid>-<YYYYMMDD>_PET.nii       (+ .json sidecar with the delivery session token)
 └── ct/   <subjid>-<YYYYMMDD>_CT.nii      (only when the delivery includes CT)
 ```
 
@@ -50,8 +50,8 @@ scanner- and site-specific.** If your reconstructions are named differently, edi
 in [`dropbox_pet_to_bids.py`](../pipeline/1_ingest/dropbox_pet_to_bids.py) (around lines 140 and 159)
 before running.
 
-Unlike the MRI converter, the session token in the folder name is **mandatory** here:
-`PET_<subjid>-<session>_<MMDDYYYY>`.
+As with MRI, the session token in the folder name is optional:
+`PET_<subjid>[-<session>]_<MMDDYYYY>`. It is recorded in the sidecar, not in the path.
 
 ---
 

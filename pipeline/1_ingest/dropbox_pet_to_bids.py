@@ -1,10 +1,10 @@
+import argparse
+import json
+import logging
 import re
 import shutil
-import logging
-from pathlib import Path
-import argparse
-import os
 from datetime import datetime
+from pathlib import Path
 
 """
 PET Folder Structure Reorganizer
@@ -19,6 +19,9 @@ Added logging functionality to track all file operations.
 Usage:
     python script_name.py /path/to/source_dir --target_dir /path/to/output
     example: python3 dropbox_pet_to_bids.py /batch/PET --target_dir batch/
+
+    # a delivery with a new PET/CT file name: add a substring for this run
+    python3 dropbox_pet_to_bids.py /batch/PET --pet-pattern PET_200 --ct-pattern CT_Brain
     
     If target_dir is not specified, it will create a sibling directory to source_dir
     named "[source_dir_parent]" (e.g., if source_dir is /batch/PET, target_dir will be /batch)
@@ -41,9 +44,11 @@ batch/📦ADRC (/path/to/output)/ADRC
 ┣ 📂subjid01
 ┃ ┣ 📂YYYYMMDD
 ┃ ┃ ┣ 📂pet
-┃ ┃ ┃ ┗ 📜subjid01-YYYYMMDD_PET.nii
+┃ ┃ ┃ ┣ 📜subjid01-YYYYMMDD_PET.nii
+┃ ┃ ┃ ┗ 📜subjid01-YYYYMMDD_PET.json (sidecar: delivery session token, source file, ...)
 ┃ ┃ ┣ 📂ct
-┃ ┃ ┃ ┗ 📜subjid01-YYYYMMDD_CT.nii
+┃ ┃ ┃ ┣ 📜subjid01-YYYYMMDD_CT.nii
+┃ ┃ ┃ ┗ 📜subjid01-YYYYMMDD_CT.json
 ┣ 📂subjid02
 ┃ ┣ 📂YYYYMMDD
 ┃ ┃ ┣ 📂pet
@@ -51,6 +56,50 @@ batch/📦ADRC (/path/to/output)/ADRC
 ┃ ┃ ┣ 📂ct
 ┃ ┃ ┃ ┗ 📜subjid02-YYYYMMDD_CT.nii
 """
+
+# --------------------------------------------------------------------------- file patterns
+# Case-insensitive substrings matched against each .nii filename. When a delivery names its
+# files differently, add the new substring here (or pass --pet-pattern / --ct-pattern).
+#
+# Order is priority: if a session folder has several matching files, the one matching the
+# earliest pattern is used. A file that matches a CT pattern is never taken as the PET.
+PET_PATTERNS = [
+    "mean_5mmblur",
+    "PET_6mmblur",
+    "PET_3mmblur",
+    "PET_256",
+    "PET_128",       # PET_128, PET_128a
+]
+CT_PATTERNS = [
+    "amyloid_pet_ct",
+    "pet_ct",
+    "amyloid_ct",    # 900195-01_01012024.Amyloid_CT.nii
+]
+
+
+def matching_pattern(filename, patterns):
+    """Index of the first pattern found in filename (case-insensitive), or None."""
+    name = filename.lower()
+    for i, pattern in enumerate(patterns):
+        if pattern.lower() in name:
+            return i
+    return None
+
+
+def best_match(files, patterns, exclude=()):
+    """
+    The file matching the highest-priority pattern, or None.
+
+    Ties go to the file nearest the session folder, then to the first name alphabetically,
+    so the choice doesn't depend on directory listing order.
+    """
+    ranked = []
+    for path in files:
+        rank = matching_pattern(path.name, patterns)
+        if rank is not None and matching_pattern(path.name, exclude) is None:
+            ranked.append((rank, len(path.parts), path.name, path))
+    return min(ranked)[-1] if ranked else None
+
 
 def setup_logging(target_dir):
     """
@@ -95,23 +144,26 @@ def setup_logging(target_dir):
 
 def parse_folder_name(folder_name, logger):
     """
-    Parse a medical scan folder name in the format: PET_subjID-session_MMDDYYYY
-    
+    Parse a medical scan folder name in the format: PET_subjID[-session]_MMDDYYYY
+
     Args:
         folder_name (str): The folder name to parse
         logger (logging.Logger): Logger to track operations
-        
+
     Returns:
-        tuple or None: A tuple of (subject_id, scandate) if parsing succeeds,
-                      None otherwise
-                      
+        tuple or None: A tuple of (subject_id, session, scandate) if parsing succeeds,
+                      None otherwise. session is None when the folder has no session part.
+
     Examples:
         >>> parse_folder_name("PET_ADRC-01_01022023", logger)
-        ('ADRC', '20230102')
+        ('ADRC', '01', '20230102')
         >>> parse_folder_name("PET_ADRC-C1_01022023", logger)
-        ('ADRC', '20230102')
+        ('ADRC', 'C1', '20230102')
+        >>> parse_folder_name("PET_ADRC_01022023", logger)
+        ('ADRC', None, '20230102')
     """
-    pattern = r"PET_(.*?)-([A-Za-z0-9]+)_(\d{2})(\d{2})(\d{4})"
+    # Session part is optional: older deliveries don't have one (same rule as MRI)
+    pattern = r"PET_(.*?)(?:-([A-Za-z0-9]+))?_(\d{2})(\d{2})(\d{4})"
     match = re.match(pattern, folder_name)
     
     if not match:
@@ -123,48 +175,68 @@ def parse_folder_name(folder_name, logger):
     scandate = f"{year}{month}{day}"
     
     logger.info(f"Parsed folder '{folder_name}' to subject_id='{subject_id}', session='{session}', scandate='{scandate}'")
-    return (subject_id, scandate)
+    return (subject_id, session, scandate)
 
 
-def is_pet_file(filename, logger):
+def write_sidecar(nii_path, info, logger):
     """
-    Check if a filename is a PET scan file based on common patterns.
+    Write a JSON sidecar next to an ingested .nii (same name, .json suffix).
+
+    The session is identified by scandate in the ADRC tree, so the delivery's own session
+    token (01, D1, ...) would otherwise be lost; the sidecar keeps it, plus where the file came from.
+    """
+    sidecar = nii_path.with_suffix(".json")
+    try:
+        sidecar.write_text(json.dumps(info, indent=2) + "\n")
+        logger.info(f"WROTE: {sidecar}")
+    except Exception as e:
+        logger.error(f"Error writing sidecar {sidecar}: {e}")
+
+
+def is_pet_file(filename, logger, pet_patterns=None, ct_patterns=None):
+    """
+    Check if a filename is a PET scan file based on PET_PATTERNS.
     
     Args:
         filename (str): The filename to check
         logger (logging.Logger): Logger to track operations
+        pet_patterns (list, optional): Substrings to use instead of PET_PATTERNS
+        ct_patterns (list, optional): Substrings to use instead of CT_PATTERNS
         
     Returns:
-        bool: True if the file is a PET scan, False otherwise
+        bool: True if the file is a PET scan (and not a CT), False otherwise
     """
-    pet_patterns = ["mean_5mmblur", "PET_6mmblur", "PET_3mmblur", "PET_256"]
-    for pattern in pet_patterns:
-        if pattern.lower() in filename.lower():
-            logger.debug(f"Identified {filename} as a PET file (matches pattern '{pattern}')")
-            return True
-    return False
+    pet_patterns = PET_PATTERNS if pet_patterns is None else pet_patterns
+    if is_ct_file(filename, logger, ct_patterns):
+        return False
+    rank = matching_pattern(filename, pet_patterns)
+    if rank is None:
+        return False
+    logger.debug(f"Identified {filename} as a PET file (matches pattern '{pet_patterns[rank]}')")
+    return True
 
 
-def is_ct_file(filename, logger):
+def is_ct_file(filename, logger, ct_patterns=None):
     """
-    Check if a filename is a CT scan file based on common patterns.
+    Check if a filename is a CT scan file based on CT_PATTERNS.
     
     Args:
         filename (str): The filename to check
         logger (logging.Logger): Logger to track operations
+        ct_patterns (list, optional): Substrings to use instead of CT_PATTERNS
         
     Returns:
         bool: True if the file is a CT scan, False otherwise
     """
-    ct_patterns = ["amyloid_pet_ct", "pet_ct"]
-    for pattern in ct_patterns:
-        if pattern.lower() in filename.lower():
-            logger.debug(f"Identified {filename} as a CT file (matches pattern '{pattern}')")
-            return True
-    return False
+    ct_patterns = CT_PATTERNS if ct_patterns is None else ct_patterns
+    rank = matching_pattern(filename, ct_patterns)
+    if rank is None:
+        return False
+    logger.debug(f"Identified {filename} as a CT file (matches pattern '{ct_patterns[rank]}')")
+    return True
 
 
-def restructure_files(source_dir, target_dir, logger):
+def restructure_files(source_dir, target_dir, logger, pet_patterns=None, ct_patterns=None):
     """
     Restructure PET scan files into a standardized directory structure
     based on folder names.
@@ -173,10 +245,14 @@ def restructure_files(source_dir, target_dir, logger):
         source_dir (str): Path to the source directory containing PET_* folders
         target_dir (str): Path to the target directory where restructured files will be stored
         logger (logging.Logger): Logger to track operations
+        pet_patterns (list, optional): PET filename substrings, in priority order (default PET_PATTERNS)
+        ct_patterns (list, optional): CT filename substrings, in priority order (default CT_PATTERNS)
                                   
     Returns:
         dict: A dictionary mapping subject IDs to their file information
     """
+    pet_patterns = PET_PATTERNS if pet_patterns is None else pet_patterns
+    ct_patterns = CT_PATTERNS if ct_patterns is None else ct_patterns
     source_path = Path(source_dir)
     target_path = Path(target_dir)
     adrc_dir = target_path / "ADRC"
@@ -190,6 +266,8 @@ def restructure_files(source_dir, target_dir, logger):
         return {}
     
     logger.info(f"Found {len(subfolders)} PET_* subfolders in {source_dir}")
+    logger.info(f"PET patterns: {', '.join(pet_patterns)}")
+    logger.info(f"CT patterns: {', '.join(ct_patterns)}")
         
     total_subjects = {}
     # Process each subfolder
@@ -201,36 +279,45 @@ def restructure_files(source_dir, target_dir, logger):
             logger.warning(f"Could not parse folder name: {subfolder.name}. Skipping.")
             continue
             
-        subject_id, scandate = result
-        
+        subject_id, session, scandate = result
+
         # Initialize subject entry if it doesn't exist
         if subject_id not in total_subjects:
-            total_subjects[subject_id] = {'folders': [], 'PET': None, 'CT': None}
+            total_subjects[subject_id] = {'folders': []}
             logger.info(f"Added new subject: {subject_id}")
-        
+
         # Store folder information
         total_subjects[subject_id]['folders'].append((subfolder, scandate))
-        
+
         # Process files in the folder
-        process_subject_folder(subfolder, subject_id, scandate, total_subjects, adrc_dir, logger)
-    
+        process_subject_folder(subfolder, subject_id, session, scandate, adrc_dir, logger,
+                               pet_patterns, ct_patterns)
+
     return total_subjects
 
 
-def process_subject_folder(folder_path, subject_id, scandate, subjects_dict, adrc_dir, logger):
+def process_subject_folder(folder_path, subject_id, session, scandate, adrc_dir, logger,
+                           pet_patterns=None, ct_patterns=None):
     """
     Process a single subject folder containing .nii files.
-    
+
+    The PET and CT are chosen from this folder only, so each session gets its own scans.
+
     Args:
         folder_path (Path): Path object pointing to the subject folder
         subject_id (str): The subject ID
+        session (str or None): The delivery's session token, recorded in the sidecar
         scandate (str): The parsed scandate string
-        subjects_dict (dict): Dictionary of subject information
         adrc_dir (Path): Path object pointing to the target ADRC directory
         logger (logging.Logger): Logger to track operations
+        pet_patterns (list, optional): PET filename substrings, in priority order (default PET_PATTERNS)
+        ct_patterns (list, optional): CT filename substrings, in priority order (default CT_PATTERNS)
     """
+    pet_patterns = PET_PATTERNS if pet_patterns is None else pet_patterns
+    ct_patterns = CT_PATTERNS if ct_patterns is None else ct_patterns
+
     # Get all .nii files in the folder
-    nii_files = list(folder_path.glob('**/*.nii'))
+    nii_files = sorted(folder_path.glob('**/*.nii'))
     logger.info(f"Found {len(nii_files)} .nii files in {folder_path}")
     
     # Create subject directory structure
@@ -248,56 +335,71 @@ def process_subject_folder(folder_path, subject_id, scandate, subjects_dict, adr
     logger.info(f"Created directory structure for {subject_id}/{scandate}")
     
     
-    # Find PET and CT files
-    for file_path in nii_files:
-        filename = file_path.name
-        logger.debug(f"Examining file: {filename}")
-        
-        # Check if file is a PET scan
-        if not subjects_dict[subject_id]['PET'] and is_pet_file(filename, logger):
-            subjects_dict[subject_id]['PET'] = (file_path, scandate)
-            logger.info(f"Found PET file for {subject_id}: {file_path}")
-                
-        # Check if file is a CT scan
-        if not subjects_dict[subject_id]['CT'] and is_ct_file(filename, logger):
-            subjects_dict[subject_id]['CT'] = (file_path, scandate)
-            logger.info(f"Found CT file for {subject_id}: {file_path}")
-    
+    # Find PET and CT files in this folder
+    pet_path = best_match(nii_files, pet_patterns, exclude=ct_patterns)
+    if pet_path:
+        logger.info(f"Found PET file for {subject_id}/{scandate}: {pet_path}")
+
+    ct_path = best_match(nii_files, ct_patterns)
+    if ct_path:
+        logger.info(f"Found CT file for {subject_id}/{scandate}: {ct_path}")
+
     # Process PET directory
-    pet_file = subjects_dict[subject_id]['PET']
-    if pet_file:
-        file_path, file_scandate = pet_file
-        
+    if pet_path:
         # Apply standardized name
-        new_filename = f"{subject_id}-{file_scandate}_PET.nii"
-        
+        new_filename = f"{subject_id}-{scandate}_PET.nii"
+
         # Copy to pet directory
         target_pet_file = subj_pet_dir / new_filename
         try:
-            shutil.copy2(file_path, target_pet_file)
-            logger.info(f"RENAMED: {file_path} -> {target_pet_file} (PET scan)")
+            shutil.copy2(pet_path, target_pet_file)
+            logger.info(f"RENAMED: {pet_path} -> {target_pet_file} (PET scan)")
+            write_sidecar(target_pet_file, {
+                "session": session,
+                "delivery_folder": folder_path.name,
+                "source_file": pet_path.relative_to(folder_path).as_posix(),
+                "selected_as": pet_patterns[matching_pattern(pet_path.name, pet_patterns)],
+                "ingested_at": datetime.now().isoformat(timespec="seconds"),
+            }, logger)
         except Exception as e:
             logger.error(f"Error copying PET file: {e}")
     else:
-        logger.warning(f"No PET file found for subject {subject_id}")
-    
+        logger.warning(f"No PET file found for subject {subject_id}/{scandate}")
+        log_unmatched(nii_files, "PET", logger)
+
     # Process CT directory
-    ct_file = subjects_dict[subject_id]['CT']
-    if ct_file:
-        file_path, file_scandate = ct_file
-        
+    if ct_path:
         # Apply standardized name
-        new_filename = f"{subject_id}-{file_scandate}_CT.nii"
-        
+        new_filename = f"{subject_id}-{scandate}_CT.nii"
+
         # Copy to ct directory
         target_ct_file = subj_ct_dir / new_filename
         try:
-            shutil.copy2(file_path, target_ct_file)
-            logger.info(f"RENAMED: {file_path} -> {target_ct_file} (CT scan)")
+            shutil.copy2(ct_path, target_ct_file)
+            logger.info(f"RENAMED: {ct_path} -> {target_ct_file} (CT scan)")
+            write_sidecar(target_ct_file, {
+                "session": session,
+                "delivery_folder": folder_path.name,
+                "source_file": ct_path.relative_to(folder_path).as_posix(),
+                "selected_as": ct_patterns[matching_pattern(ct_path.name, ct_patterns)],
+                "ingested_at": datetime.now().isoformat(timespec="seconds"),
+            }, logger)
         except Exception as e:
             logger.error(f"Error copying CT file: {e}")
     else:
-        logger.warning(f"No CT file found for subject {subject_id}")
+        logger.warning(f"No CT file found for subject {subject_id}/{scandate}")
+        log_unmatched(nii_files, "CT", logger)
+
+
+def log_unmatched(nii_files, kind, logger):
+    """List the .nii files that were looked at, so a new naming scheme is easy to spot."""
+    if not nii_files:
+        return
+    names = ", ".join(p.name for p in nii_files)
+    flag = "--pet-pattern" if kind == "PET" else "--ct-pattern"
+    logger.warning(f"  .nii files in folder: {names}")
+    logger.warning(f"  If one of these is the {kind}, add a substring of its name with {flag} "
+                   f"or to {kind}_PATTERNS")
 
 
 def main():
@@ -309,7 +411,13 @@ def main():
     parser = argparse.ArgumentParser(description="Restructure PET scan files based on folder names")
     parser.add_argument("source_dir", help="Source directory containing PET_* folders")
     parser.add_argument("--target_dir", help="Target directory for restructured files (default is sibling to source_dir)", default=None)
+    parser.add_argument("--pet-pattern", action="append", default=[], metavar="SUBSTRING",
+                        help="Extra PET filename substring, tried after the built-in ones (repeatable)")
+    parser.add_argument("--ct-pattern", action="append", default=[], metavar="SUBSTRING",
+                        help="Extra CT filename substring, tried after the built-in ones (repeatable)")
     args = parser.parse_args()
+    pet_patterns = PET_PATTERNS + args.pet_pattern
+    ct_patterns = CT_PATTERNS + args.ct_pattern
     
     
     # If target_dir is not specified, use a sibling directory to source_dir
@@ -326,11 +434,11 @@ def main():
     logger.info(f"Starting PET reorganization from {args.source_dir} to {args.target_dir}")
     logger.info("=" * 80)
     
-    subjects = restructure_files(args.source_dir, args.target_dir, logger)
+    subjects = restructure_files(args.source_dir, args.target_dir, logger, pet_patterns, ct_patterns)
     
     # Log summary information
     logger.info("=" * 80)
-    logger.info(f"Reorganization complete!")
+    logger.info("Reorganization complete!")
     logger.info(f"Processed {len(subjects)} subjects")
     if subjects:
         logger.info(f"Subject IDs: {', '.join(sorted(subjects.keys()))}")

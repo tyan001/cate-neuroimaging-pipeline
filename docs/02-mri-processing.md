@@ -60,6 +60,7 @@ Parses folder names of the form `MRI_<subjid>[-<session>]_<MMDDYYYY>` and produc
 ```
 <target>/ADRC/<subjid>/<YYYYMMDD>/
 ├── anat/        <subjid>-<YYYYMMDD>_T1w.nii     ← the scan recon-all will use
+│                <subjid>-<YYYYMMDD>_T1w.json    ← delivery session token, source file
 └── modalities/  every original file, untouched
 ```
 
@@ -70,10 +71,9 @@ in `modalities/`. Nothing is discarded.
 
 Logs land in `<target>/logs/mri_bids_logs/`.
 
-> **Known issue.** The chosen T1 is latched per *subject*, not per *session*. If one run converts a
-> subject with several sessions, the first session's T1 is reused for the later ones. Convert
-> multi-session subjects one session at a time, or verify `anat/` afterwards with
-> `pipeline/5_aggregate/anat_report.py`.
+The T1 is chosen per delivery folder, so subjects with several sessions can be converted in one run.
+The delivery's session token (`01`, `D1`, …) is not part of the path — the session is identified by
+its date — but it is kept in the `.json` sidecar next to the T1 (`null` for older deliveries without one).
 
 Verify the result before spending CPU-days on it:
 

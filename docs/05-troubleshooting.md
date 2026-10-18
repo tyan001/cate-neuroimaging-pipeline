@@ -193,7 +193,6 @@ Carried forward deliberately — these are documented, not fixed.
 | No partial-volume correction | `suvr.py` | Expect PVE-driven underestimation in thin cortex. |
 | `freesurfer741` hardcoded | `mri_processing.py`, `prepare_suvr_folder.py` | Works with other FS 7.x, but the folder name stays `freesurfer741`. |
 | `ADRC` hardcoded as output dir | `dropbox_{mri,pet}_to_bids.py` | Cohort folder name is a string literal. |
-| T1 latched per subject, not per session | `dropbox_{mri,pet}_to_bids.py` | Multi-session subjects converted in one run reuse the first session's T1. Convert one session at a time. |
 | `os.system` with unquoted paths | `mri_processing.py` | Paths containing spaces break. Avoid spaces in data paths. |
 | PET/CT filename patterns are site-specific | `dropbox_pet_to_bids.py` | Edit the pattern lists for your scanner's naming. |
 

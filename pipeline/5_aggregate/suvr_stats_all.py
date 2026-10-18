@@ -1,21 +1,33 @@
 #!/usr/bin/env python3
 """
-Aggregate SUVR results for every PET-MRI pair under a root directory
-(e.g. NWSI/ADRC) into a SINGLE CSV: one row per pair, with centiloid and all
-ROI SUVR columns taken from each res/ folder's combined SUVR summary.
+Aggregate SUVR results for every PET-MRI pair in the flat SUVR symlink farm into a
+SINGLE CSV: one row per pair, with centiloid and all ROI SUVR columns taken from
+each res/ folder's combined SUVR summary.
 
-Layout assumed (the existing pipeline output):
-    <root>/<subjid>/<session>/suvr/<PET_dir>/<subjid>_pet_<petdate>_mri_<mridate>/res/
+Input layout: a flat symlink farm as built by suvr_symlink.py --
+one symlink per '<subjid>-<session>_PET[...]' scan, pointing at the real
+'<root>/<subjid>/<session>/suvr/<PET_dir>/' directory. Each of those in turn holds one
+subfolder per MRI registration target:
+
+    <PET_dir>/<subjid>_pet_<petdate>_mri_<mridate>/res/
         ..._suvr_combined_cerebellum_gm.csv   (one data row: PID, Compound, Centiloid, ROIs)
 
+Build/refresh the farm first if it doesn't exist yet or is out of date:
+
+    python suvr_symlink.py \
+        --source /path/to/ADRC --target /path/to/NWSI/suvr_link
+
 Usage:
-    python suvr_stats_all.py -rd /data/ADRC -o suvr_stats_all.csv
-    python suvr_stats_all.py -rd .../ADRC --pattern suvr_combined_cerebellum   # whole-cerebellum reference
+    python suvr_stats_all.py -o suvr_output        # uses /mnt/backup/dev/NWSI/suvr_link
+    python suvr_stats_all.py -ld /path/to/NWSI/suvr_link -o suvr_output
+    python suvr_stats_all.py -ld .../NWSI/suvr_link --pattern suvr_combined_cerebellum   # whole-cerebellum reference
 """
 import argparse
 from pathlib import Path
 
 import pandas as pd
+
+DEFAULT_LINK_DIR = "/mnt/backup/dev/NWSI/suvr_link"
 
 ID_COLS = ("subject_id", "pet_date", "pet_info", "mri_date", "mri_info")
 
@@ -24,9 +36,9 @@ def parse_combo(name: str) -> dict:
     """Parse a combo folder name into its parts.
 
     Handles the base form and an optional PET reconstruction token / MRI suffix:
-        320011_pet_20211014_mri_20211015
-        320056_pet_20240110_128_mri_20240111
-        110348_pet_9.Am2201_mri_20170811_CorMPRAGE
+        900011_pet_20211014_mri_20211015
+        900056_pet_20240110_128_mri_20240111
+        900348_pet_9.Am2201_mri_20170811_CorMPRAGE
     """
     out = {k: None for k in ID_COLS}
     if "_pet_" not in name or "_mri_" not in name:
@@ -72,29 +84,39 @@ def read_summary_csv(path: Path) -> pd.DataFrame:
         df = raw.iloc[2:].copy()
         df.columns = names
         df = df.reset_index(drop=True)
-        for c in df.columns:
-            if c != "PID":
-                df[c] = pd.to_numeric(df[c], errors="coerce")
-        return df
+        # Convert all ROI columns in one go (per-column assignment fragments the frame).
+        return pd.concat(
+            [df.iloc[:, :1], df.iloc[:, 1:].apply(pd.to_numeric, errors="coerce")], axis=1
+        )
     # single-header layout
     return pd.read_csv(path)
 
 
-def find_res_csvs(root_dir: Path, pattern: str):
-    """Find the SUVR summary CSV in every res/ folder under root."""
+def find_res_csvs(farm_dir: Path, pattern: str):
+    """Find the SUVR summary CSV in every res/ folder reachable from the flat farm.
+
+    farm_dir is a flat directory of symlinks (one per PET scan), so we glob from
+    each symlink individually rather than farm_dir itself: pathlib's '**' does not
+    descend through a symlink boundary it encounters mid-walk, and every immediate
+    child of farm_dir is one such symlink.
+    """
     matches = []
-    for res in root_dir.glob("**/res"):
-        if not res.is_dir():
+    for pet_dir in sorted(farm_dir.iterdir()):
+        if not pet_dir.is_dir():
+            print(f"  WARNING: skipping {pet_dir.name} (broken symlink or not a directory)")
             continue
-        # Anchor to the trailing type token so e.g. 'suvr_cerebellum' does not
-        # also match 'suvr_cerebellum_gm' or 'suvr_combined_cerebellum'.
-        hits = sorted(f for f in res.glob(f"*_{pattern}.csv") if f.is_file())
-        if not hits:
-            print(f"  WARNING: no '*{pattern}*.csv' in {res}")
-            continue
-        if len(hits) > 1:
-            print(f"  NOTE: {len(hits)} matches in {res}; using {hits[0].name}")
-        matches.append(hits[0])
+        for res in sorted(pet_dir.glob("**/res")):
+            if not res.is_dir():
+                continue
+            # Anchor to the trailing type token so e.g. 'suvr_cerebellum' does not
+            # also match 'suvr_cerebellum_gm' or 'suvr_combined_cerebellum'.
+            hits = sorted(f for f in res.glob(f"*_{pattern}.csv") if f.is_file())
+            if not hits:
+                print(f"  WARNING: no '*{pattern}*.csv' in {res}")
+                continue
+            if len(hits) > 1:
+                print(f"  NOTE: {len(hits)} matches in {res}; using {hits[0].name}")
+            matches.append(hits[0])
     return matches
 
 
@@ -107,9 +129,9 @@ ALL_PATTERNS = [
 ]
 
 
-def aggregate(root_dir: Path, pattern: str):
+def aggregate(farm_dir: Path, pattern: str):
     """Stack the per-pair CSV matching `pattern` from every res/ folder into one df."""
-    csv_files = find_res_csvs(root_dir, pattern)
+    csv_files = find_res_csvs(farm_dir, pattern)
     if not csv_files:
         print(f"  No CSV files matching '*_{pattern}.csv' found under any res/ folder.")
         return None
@@ -146,8 +168,9 @@ def aggregate(root_dir: Path, pattern: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Aggregate SUVR results into per-pattern CSVs.")
-    parser.add_argument("-rd", "--root-dir", required=True,
-                        help="Root directory to search for res/ folders (e.g. NWSI/ADRC).")
+    parser.add_argument("-ld", "--link-dir", default=DEFAULT_LINK_DIR,
+                        help="Flat SUVR symlink farm, as built by "
+                             f"suvr_symlink.py (default: {DEFAULT_LINK_DIR}).")
     parser.add_argument("--pattern", default=None,
                         help="Aggregate only this single pattern instead of all 4 "
                              "(e.g. suvr_combined_cerebellum_gm).")
@@ -155,9 +178,13 @@ def main():
                         help="Directory to write the per-pattern CSVs (default: suvr_output).")
     args = parser.parse_args()
 
-    root_dir = Path(args.root_dir).resolve()
-    if not root_dir.is_dir():
-        parser.error(f"Invalid root directory: {root_dir}")
+    farm_dir = Path(args.link_dir).resolve()
+    if not farm_dir.is_dir():
+        parser.error(
+            f"Invalid SUVR farm directory: {farm_dir}\n"
+            f"Build it first with: python suvr_symlink.py "
+            f"--source /path/to/ADRC --target {farm_dir}"
+        )
 
     out_dir = Path(args.output_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -166,7 +193,7 @@ def main():
     written = []
     for pattern in patterns:
         print(f"\n=== {pattern} ===")
-        df = aggregate(root_dir, pattern)
+        df = aggregate(farm_dir, pattern)
         if df is None:
             continue
         out_path = out_dir / f"{pattern}.csv"

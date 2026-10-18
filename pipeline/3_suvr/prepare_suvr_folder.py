@@ -148,6 +148,37 @@ def find_pet_scans(pet_path: Path) -> List[Path]:
     return sorted(pet_files)
 
 
+def find_closest_mri(pet_scan: Path, mri_files: List[Path]) -> Optional[Path]:
+    """
+    Pick the MRI file whose scan date is closest to the PET scan's date.
+    Ties (equal distance) resolve to whichever MRI comes first in mri_files
+    (mri_files is sorted, so this is deterministic).
+    """
+    try:
+        _, pet_date_str, _, _ = parse_nifti_filename(pet_scan.name)
+        pet_date = datetime.strptime(pet_date_str, "%Y%m%d")
+    except ValueError as e:
+        logging.error(str(e))
+        return None
+
+    best_mri = None
+    best_delta = None
+    for mri_file in mri_files:
+        try:
+            _, mri_date_str, _, _ = parse_nifti_filename(mri_file.name)
+            mri_date = datetime.strptime(mri_date_str, "%Y%m%d")
+        except ValueError as e:
+            logging.error(str(e))
+            continue
+
+        delta = abs((mri_date - pet_date).days)
+        if best_delta is None or delta < best_delta:
+            best_delta = delta
+            best_mri = mri_file
+
+    return best_mri
+
+
 def find_mri_files(subject_path: Path) -> List[Path]:
     """
     Find all MRI files in anat directories.
@@ -508,10 +539,14 @@ def process_subject(
         suvr_dir = date_dir / "suvr"
         suvr_dir.mkdir(exist_ok=True)
         
-        # Add all combinations for this date
+        # Pair each PET scan with its closest-dated MRI only
         for pet_scan in pet_scans:
-            for mri_file in mri_files:
-                combinations.append((pet_scan, mri_file, suvr_dir))
+            closest_mri = find_closest_mri(pet_scan, mri_files)
+            if closest_mri is None:
+                if verbose:
+                    print(f"No matching MRI date found for {pet_scan.name}")
+                continue
+            combinations.append((pet_scan, closest_mri, suvr_dir))
     
     total_combinations = len(combinations)
     if verbose:

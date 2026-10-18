@@ -1,7 +1,18 @@
 #!/usr/bin/env python3
+"""
+Bulk-add a modality prefix (e.g. 'MRI_', 'PET_') to immediate subfolder names. Needed
+for sites that deliver without the modality prefix (one of our sites does).
+Skips any subfolder that already has the prefix, so it's safe to re-run.
 
-import os
+Usage:
+    python3 prefix.py /path/to/MRI --prefix MRI_ --dry-run   # preview
+    python3 prefix.py /path/to/MRI --prefix MRI_             # apply
+    python3 prefix.py /path/to/PET --prefix PET_             # different modality
+"""
+
 import argparse
+import os
+
 
 def rename_folders_with_prefix(parent_dir, prefix="MRI_", dry_run=False):
     """

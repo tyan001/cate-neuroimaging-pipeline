@@ -1,23 +1,33 @@
 #!/usr/bin/env python3
 """
-Aggregate FreeSurfer morphometry for every recon subject under a root directory
-(e.g. NWSI/ADRC) into SEPARATE per-measure CSVs (one row per recon subject):
+Aggregate FreeSurfer morphometry for every recon subject in the flat FreeSurfer
+symlink farm into SEPARATE per-measure CSVs (one row per recon subject):
 
     aparc_thickness.csv   cortical thickness, left + right hemispheres
     aparc_volume.csv      cortical volume,    left + right hemispheres
     aseg_stats.csv        subcortical segmentation volumes (aseg.stats)
     wmparc.csv            white-matter parcellation volumes (wmparc.stats)
     hippocampus.csv       hippocampal subfield volumes, left + right (segmentHA)
+    amygdala.csv          amygdala nuclei volumes, left + right (segmentHA)
 
-Layout assumed (the existing pipeline output):
-    <root>/<subjid>/<session>/freesurfer741/<subjid>-<scandate>_<type>/{stats,mri}/...
+Input layout: a flat symlink farm as built by freesurfer_symlink.py --
+one symlink per '<subjid>-<scandate>_<type>' recon, pointing at the real
+'<root>/<subjid>/<session>/freesurfer741/<subjid>-<scandate>_<type>/' directory
+(recons are otherwise scattered one per session, with no central SUBJECTS_DIR).
+Build/refresh the farm first if it doesn't exist yet or is out of date:
+
+    python freesurfer_symlink.py \
+        --source /path/to/ADRC --target /path/to/NWSI/freesurfer_link
 
 Requires a working FreeSurfer environment (FREESURFER_HOME set, valid license) for
-the aseg/aparc/wmparc tables; the hippocampus table is parsed directly from the
-per-subject mri/*.hippoSfVolumes-*.txt files.
+the aseg/aparc/wmparc tables; the hippocampus/amygdala tables are parsed directly
+from the per-subject mri/*.hippoSfVolumes-*.txt / mri/*.amygNucVolumes-*.txt files,
+no FreeSurfer tools needed for those two.
 
 Usage:
-    python mri_stats_all.py -rd /data/ADRC -o mri_output
+    source $FREESURFER_HOME/SetUpFreeSurfer.sh
+    python mri_stats_all.py -o mri_output          # uses /mnt/backup/dev/NWSI/freesurfer_link
+    python mri_stats_all.py -ld /path/to/NWSI/freesurfer_link -o mri_output
 """
 import argparse
 import os
@@ -28,26 +38,34 @@ from pathlib import Path
 
 import pandas as pd
 
+DEFAULT_LINK_DIR = "/mnt/backup/dev/NWSI/freesurfer_link"
+
 SUBJECT_RE = re.compile(r"^(?P<subject_id>[^-]+)-(?P<scan_date>\d{8})_(?P<scan_type>.+)$")
 
 
-def find_all_subjects(root_dir: Path):
-    """Find every freesurfer741/<subject> folder under root (excluding fsaverage)."""
-    subject_paths, seen = [], set()
-    for fs_dir in root_dir.rglob("freesurfer741"):
-        if not fs_dir.is_dir():
+def find_farm_subjects(farm_dir: Path):
+    """List every subject in the flat symlink farm that has a stats/ dir.
+
+    The farm is a flat directory of symlinks (freesurfer_symlink.py),
+    each named '<subjid>-<scandate>_<type>' and pointing at the real recon directory.
+    This only validates and lists the farm -- it does not walk the raw ADRC tree, which
+    is what made the old rglob-based discovery slow.
+    """
+    subject_paths = []
+    for entry in sorted(farm_dir.iterdir()):
+        if not entry.is_dir():
+            print(f"  WARNING: skipping {entry.name} (broken symlink or not a directory)")
             continue
-        for subj in fs_dir.iterdir():
-            if subj.is_dir() and subj.name != "fsaverage" and subj.name not in seen:
-                if (subj / "stats").is_dir():
-                    subject_paths.append(subj)
-                    seen.add(subj.name)
-    return sorted(subject_paths, key=lambda p: p.name)
+        if (entry / "stats").is_dir():
+            subject_paths.append(entry)
+        else:
+            print(f"  NOTE: skipping {entry.name} (no stats/ dir)")
+    return subject_paths
 
 
-def run_table(cmd: str, subjects_dir: Path, out_file: Path):
+def run_table(cmd: str, cwd: Path, out_file: Path):
     print(f"Running: {cmd}")
-    subprocess.run(cmd, shell=True, cwd=subjects_dir, check=False)
+    subprocess.run(cmd, shell=True, cwd=cwd, check=False)
     if not out_file.exists():
         print(f"  WARNING: {out_file.name} was not produced.")
         return None
@@ -63,10 +81,10 @@ def run_table(cmd: str, subjects_dir: Path, out_file: Path):
 
 def add_ids(df: pd.DataFrame) -> pd.DataFrame:
     """Prepend subject_id / scan_date / scan_type parsed from the subject name."""
-    parsed = df["subject"].str.extract(SUBJECT_RE)
-    df = df.copy()
-    for col in ("subject_id", "scan_date", "scan_type"):
-        df.insert(df.columns.get_loc("subject"), col, parsed[col])
+    parsed = df["subject"].str.extract(SUBJECT_RE)[["subject_id", "scan_date", "scan_type"]]
+    # Join all id columns at once (repeated df.insert fragments wide tables).
+    pos = df.columns.get_loc("subject")
+    df = pd.concat([df.iloc[:, :pos], parsed, df.iloc[:, pos:]], axis=1)
     return df.sort_values("subject").reset_index(drop=True)
 
 
@@ -111,42 +129,44 @@ def build_subfield_table(subject_paths, file_glob: str, label: str) -> pd.DataFr
 
 def main():
     parser = argparse.ArgumentParser(description="Aggregate FreeSurfer MRI stats into per-measure CSVs.")
-    parser.add_argument("-rd", "--root-dir", required=True,
-                        help="Root directory to search for freesurfer741 folders (e.g. NWSI/ADRC).")
+    parser.add_argument("-ld", "--link-dir", default=DEFAULT_LINK_DIR,
+                        help="Flat FreeSurfer symlink farm, as built by "
+                             f"freesurfer_symlink.py (default: {DEFAULT_LINK_DIR}).")
     parser.add_argument("-o", "--output-dir", default="mri_output",
                         help="Directory to write the per-measure CSVs (default: mri_output).")
     args = parser.parse_args()
 
-    root_dir = Path(args.root_dir).resolve()
-    if not root_dir.is_dir():
-        parser.error(f"Invalid root directory: {root_dir}")
+    farm_dir = Path(args.link_dir).resolve()
+    if not farm_dir.is_dir():
+        parser.error(
+            f"Invalid farm directory: {farm_dir}\n"
+            f"Build it first with: python freesurfer_symlink.py "
+            f"--source /path/to/ADRC --target {farm_dir}"
+        )
 
-    subject_paths = find_all_subjects(root_dir)
+    subject_paths = find_farm_subjects(farm_dir)
     if not subject_paths:
-        print("No recon subjects found under any freesurfer741 directory.")
+        print(f"No valid recon subjects found in {farm_dir}.")
         return
-    print(f"Found {len(subject_paths)} recon subjects.")
+    print(f"Found {len(subject_paths)} recon subjects in the farm.")
 
     out_dir = Path(args.output_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     written = []
 
+    # The farm IS a flat SUBJECTS_DIR already -- point FreeSurfer's table tools
+    # straight at it instead of building a fresh one per run.
+    os.environ["SUBJECTS_DIR"] = str(farm_dir)
+    subj_arg = " ".join(sp.name for sp in subject_paths)
+
     with tempfile.TemporaryDirectory() as tmp:
-        subjects_dir = Path(tmp)
-        subjects = []
-        for sp in subject_paths:
-            link = subjects_dir / sp.name
-            try:
-                link.symlink_to(sp)
-                subjects.append(sp.name)
-            except OSError as e:
-                print(f"  Failed to symlink {sp}: {e}")
-        os.environ["SUBJECTS_DIR"] = str(subjects_dir)
-        subj_arg = " ".join(subjects)
+        # Scratch dir is only for the table tools' intermediate .txt output;
+        # SUBJECTS_DIR above is what actually points them at the recons.
+        scratch_dir = Path(tmp)
 
         # --- aseg subcortical volumes ---
         df = run_table(f"asegstats2table --subjects {subj_arg} --meas volume --skip "
-                       f"--tablefile aseg_stats.txt", subjects_dir, subjects_dir / "aseg_stats.txt")
+                       f"--tablefile aseg_stats.txt", scratch_dir, scratch_dir / "aseg_stats.txt")
         if df is not None:
             add_ids(df).to_csv(out_dir / "aseg_stats.csv", index=False)
             written.append("aseg_stats.csv")
@@ -154,16 +174,16 @@ def main():
         # --- wmparc white-matter volumes ---
         df = run_table(f"asegstats2table --subjects {subj_arg} --meas volume --skip "
                        f"--statsfile wmparc.stats --all-segs --tablefile wmparc.txt",
-                       subjects_dir, subjects_dir / "wmparc.txt")
+                       scratch_dir, scratch_dir / "wmparc.txt")
         if df is not None:
             add_ids(df).to_csv(out_dir / "wmparc.csv", index=False)
             written.append("wmparc.csv")
 
         # --- aparc cortical volume (lh + rh) ---
         lh = run_table(f"aparcstats2table --subjects {subj_arg} --hemi lh --meas volume --skip "
-                       f"--tablefile aparc_volume_lh.txt", subjects_dir, subjects_dir / "aparc_volume_lh.txt")
+                       f"--tablefile aparc_volume_lh.txt", scratch_dir, scratch_dir / "aparc_volume_lh.txt")
         rh = run_table(f"aparcstats2table --subjects {subj_arg} --hemi rh --meas volume --skip "
-                       f"--tablefile aparc_volume_rh.txt", subjects_dir, subjects_dir / "aparc_volume_rh.txt")
+                       f"--tablefile aparc_volume_rh.txt", scratch_dir, scratch_dir / "aparc_volume_rh.txt")
         if lh is not None or rh is not None:
             merged = lh if rh is None else (rh if lh is None else lh.merge(rh, on="subject", how="outer"))
             add_ids(merged).to_csv(out_dir / "aparc_volume.csv", index=False)
@@ -171,9 +191,9 @@ def main():
 
         # --- aparc cortical thickness (lh + rh) ---
         lh = run_table(f"aparcstats2table --subjects {subj_arg} --hemi lh --meas thickness --skip "
-                       f"--tablefile aparc_thickness_lh.txt", subjects_dir, subjects_dir / "aparc_thickness_lh.txt")
+                       f"--tablefile aparc_thickness_lh.txt", scratch_dir, scratch_dir / "aparc_thickness_lh.txt")
         rh = run_table(f"aparcstats2table --subjects {subj_arg} --hemi rh --meas thickness --skip "
-                       f"--tablefile aparc_thickness_rh.txt", subjects_dir, subjects_dir / "aparc_thickness_rh.txt")
+                       f"--tablefile aparc_thickness_rh.txt", scratch_dir, scratch_dir / "aparc_thickness_rh.txt")
         if lh is not None or rh is not None:
             merged = lh if rh is None else (rh if lh is None else lh.merge(rh, on="subject", how="outer"))
             add_ids(merged).to_csv(out_dir / "aparc_thickness.csv", index=False)

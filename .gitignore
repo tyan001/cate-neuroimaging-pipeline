@@ -16,6 +16,7 @@ Processing/
 *.nii.gz
 *.mgz
 *.gii
+testdata/
 mri_output/
 suvr_output/
 

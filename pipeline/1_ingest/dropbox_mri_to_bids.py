@@ -1,10 +1,10 @@
+import argparse
+import json
+import logging
 import re
 import shutil
-import logging
-from pathlib import Path
-import argparse
-import os
 from datetime import datetime
+from pathlib import Path
 
 """
 MRI Folder Structure Reorganizer
@@ -41,7 +41,8 @@ batch/📦ADRC (/path/to/output)/ADRC
 ┣ 📂subjid01
 ┃ ┣ 📂YYYYMMDD
 ┃ ┃ ┣ 📂anat
-┃ ┃ ┃ ┗ 📜subjid01-YYYYMMDD_T1w.nii or subjid01-YYYYMMDD_CorMPRAGE.nii (CorMPRAGE is the fallback if T1 don't exist)
+┃ ┃ ┃ ┣ 📜subjid01-YYYYMMDD_T1w.nii or subjid01-YYYYMMDD_CorMPRAGE.nii (CorMPRAGE is the fallback if T1 don't exist)
+┃ ┃ ┃ ┗ 📜subjid01-YYYYMMDD_T1w.json (sidecar: delivery session token, source file, ...)
 ┃ ┃ ┗ 📂modalities
 ┃ ┃ ┃ ┣ 📜[all original files]
 ┣ 📂subjid02
@@ -102,12 +103,14 @@ def parse_folder_name(folder_name, logger):
         logger (logging.Logger): Logger to track operations
         
     Returns:
-        tuple or None: A tuple of (subject_id, scandate) if parsing succeeds,
-                      None otherwise
-                      
+        tuple or None: A tuple of (subject_id, session, scandate) if parsing succeeds,
+                      None otherwise. session is None when the folder has no session part.
+
     Examples:
         >>> parse_folder_name("MRI_ADRC-01_01022023", logger)
-        ('ADRC', '20230102')
+        ('ADRC', '01', '20230102')
+        >>> parse_folder_name("MRI_ADRC_01022023", logger)
+        ('ADRC', None, '20230102')
     """
     
     
@@ -123,7 +126,7 @@ def parse_folder_name(folder_name, logger):
     # (\d{2})        - Group 4: Day (exactly 2 digits)  
     # (\d{4})        - Group 5: Year (exactly 4 digits)
     #
-    # Matches: MRI_110001-01_01022023 OR MRI_110001_01022023
+    # Matches: MRI_900001-01_01022023 OR MRI_900001_01022023
     pattern = r"MRI_(.*?)(?:-([A-Za-z0-9]+))?_(\d{2})(\d{2})(\d{4})"
     # pattern = r"MRI_(.*?)-([A-Za-z0-9]+)_(\d{2})(\d{2})(\d{4})"
     match = re.match(pattern, folder_name)
@@ -137,7 +140,22 @@ def parse_folder_name(folder_name, logger):
     scandate = f"{year}{month}{day}"
 
     logger.info(f"Parsed folder '{folder_name}' to subject_id='{subject_id}', session='{session}', scandate='{scandate}'")
-    return (subject_id, scandate)
+    return (subject_id, session, scandate)
+
+
+def write_sidecar(nii_path, info, logger):
+    """
+    Write a JSON sidecar next to an ingested .nii (same name, .json suffix).
+
+    The session is identified by scandate in the ADRC tree, so the delivery's own session
+    token (01, D1, ...) would otherwise be lost; the sidecar keeps it, plus where the file came from.
+    """
+    sidecar = nii_path.with_suffix(".json")
+    try:
+        sidecar.write_text(json.dumps(info, indent=2) + "\n")
+        logger.info(f"WROTE: {sidecar}")
+    except Exception as e:
+        logger.error(f"Error writing sidecar {sidecar}: {e}")
 
 
 def get_modality_from_filename(filename, logger):
@@ -200,31 +218,33 @@ def restructure_files(source_dir, target_dir, logger):
             logger.warning(f"Could not parse folder name: {subfolder.name}. Skipping.")
             continue
             
-        subject_id, scandate = result
-        
+        subject_id, session, scandate = result
+
         # Initialize subject entry if it doesn't exist
         if subject_id not in total_subjects:
-            total_subjects[subject_id] = {'folders': [], 'T1': None, 'Cor_MPRAGE': None}
+            total_subjects[subject_id] = {'folders': []}
             logger.info(f"Added new subject: {subject_id}")
-        
+
         # Store folder information
         total_subjects[subject_id]['folders'].append((subfolder, scandate))
-        
+
         # Process files in the folder
-        process_subject_folder(subfolder, subject_id, scandate, total_subjects, adrc_dir, logger)
-    
+        process_subject_folder(subfolder, subject_id, session, scandate, adrc_dir, logger)
+
     return total_subjects
 
 
-def process_subject_folder(folder_path, subject_id, scandate, subjects_dict, adrc_dir, logger):
+def process_subject_folder(folder_path, subject_id, session, scandate, adrc_dir, logger):
     """
     Process a single subject folder containing .nii files.
-    
+
+    The T1 / Cor_MPRAGE is chosen from this folder only, so each session gets its own scan.
+
     Args:
         folder_path (Path): Path object pointing to the subject folder
         subject_id (str): The subject ID
+        session (str or None): The delivery's session token, recorded in the sidecar
         scandate (str): The parsed scandate string
-        subjects_dict (dict): Dictionary of subject information
         adrc_dir (Path): Path object pointing to the target ADRC directory
         logger (logging.Logger): Logger to track operations
     """
@@ -267,39 +287,47 @@ def process_subject_folder(folder_path, subject_id, scandate, subjects_dict, adr
     except Exception as e:
         logger.error(f"Error copying files to modalities directory: {e}")
     
-    # Find T1 and Cor_MPRAGE files
+    # Find T1 and Cor_MPRAGE files in this folder
+    found = {'T1': None, 'Cor_MPRAGE': None}
     for file_path in nii_files:
         modality = get_modality_from_filename(file_path.name, logger)
         if not modality:
             continue
-        
+
         # Track T1 and Cor_MPRAGE files
-        if modality.lower() == "t1" and not subjects_dict[subject_id]['T1']:
-            subjects_dict[subject_id]['T1'] = (file_path, scandate, modality)
-            logger.info(f"Found T1 file for {subject_id}: {file_path}")
-        elif modality.lower() == "cor_mprage" and not subjects_dict[subject_id]['Cor_MPRAGE']:
-            subjects_dict[subject_id]['Cor_MPRAGE'] = (file_path, scandate, modality)
-            logger.info(f"Found Cor_MPRAGE file for {subject_id}: {file_path}")
-    
+        if modality.lower() == "t1" and not found['T1']:
+            found['T1'] = (file_path, modality)
+            logger.info(f"Found T1 file for {subject_id}/{scandate}: {file_path}")
+        elif modality.lower() == "cor_mprage" and not found['Cor_MPRAGE']:
+            found['Cor_MPRAGE'] = (file_path, modality)
+            logger.info(f"Found Cor_MPRAGE file for {subject_id}/{scandate}: {file_path}")
+
     # Process anat directory
-    anat_file = subjects_dict[subject_id]['T1'] if subjects_dict[subject_id]['T1'] else subjects_dict[subject_id]['Cor_MPRAGE']
+    anat_file = found['T1'] if found['T1'] else found['Cor_MPRAGE']
     if anat_file:
-        file_path, file_scandate, modality = anat_file
-        
+        file_path, modality = anat_file
+
         # Apply standardized modality name
         new_modality = "T1w" if modality.lower() == "t1" else "CorMPRAGE"
-        new_filename = f"{subject_id}-{file_scandate}_{new_modality}.nii"
-        
+        new_filename = f"{subject_id}-{scandate}_{new_modality}.nii"
+
         # Copy to anat directory
         target_anat_file = subj_anat_dir / new_filename
         try:
             shutil.copy2(file_path, target_anat_file)
             used_type = "T1" if modality.lower() == "t1" else "Cor_MPRAGE"
             logger.info(f"RENAMED: {file_path} -> {target_anat_file} (used {used_type})")
+            write_sidecar(target_anat_file, {
+                "session": session,
+                "delivery_folder": folder_path.name,
+                "source_file": file_path.relative_to(folder_path).as_posix(),
+                "selected_as": used_type,
+                "ingested_at": datetime.now().isoformat(timespec="seconds"),
+            }, logger)
         except Exception as e:
             logger.error(f"Error copying anat file: {e}")
     else:
-        logger.warning(f"No T1 or Cor_MPRAGE file found for subject {subject_id}")
+        logger.warning(f"No T1 or Cor_MPRAGE file found for subject {subject_id}/{scandate}")
 
 
 def main():
@@ -334,7 +362,7 @@ def main():
     
     # Log summary information
     logger.info("=" * 80)
-    logger.info(f"Reorganization complete!")
+    logger.info("Reorganization complete!")
     logger.info(f"Processed {len(subjects)} subjects")
     if subjects:
         logger.info(f"Subject IDs: {', '.join(sorted(subjects.keys()))}")
