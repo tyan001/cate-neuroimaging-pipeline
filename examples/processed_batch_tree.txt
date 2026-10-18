@@ -1,0 +1,221 @@
+A real staging batch after every stage has run: ingest, recon-all + hippocampal
+segmentation, SUVR prepare/register/quantify, symlink farms, study tables and the
+viewer conversion. Taken from a 3-subject site-320 batch, then de-identified:
+
+  Subject IDs   renumbered 990001-990003 (unused by real data or by testdata/)
+  Dates         shifted per subject; intervals within a subject are exact
+  Timestamps    scanner acquisition times and run times replaced with <ts>
+  Links         Dropbox URLs in mri.csv / pet.csv removed
+  Sizes         real
+
+Output formats and log excerpts: examples/processed_batch_outputs.md
+The idealised layout:            examples/adrc_tree.txt, docs/04-data-organization.md
+
+The three Subjects cover three shapes:
+
+  990001   MRI only. No PET, so no Pair; still gets a Subject logs/ folder.
+  990002   MRI and PET on the SAME DAY, so one Session holds both
+           (anat/ + freesurfer741/ + pet/ + ct/ + suvr/).
+  990003   PET on 20250602, MRI three days LATER on 20250605, in separate
+           Sessions. The PET pairs with an MRI that comes after it.
+
+
+Processing/Both/batch88/                          staging root for one batch
+│
+├── mri.csv                                       name,link  — download list for
+├── pet.csv                                       1_ingest/download.py (pet.csv ends
+│                                                 with an empty ',' row)
+│
+├── MRI/                                          raw MRI delivery, left in place
+│   ├── MRI_990001-D1_04122025/                   MRI_<subj>-<visit>_<MMDDYYYY>
+│   │   ├── 990001-D1_04122025.T1.nii              25.6 MB   -> anat/ as _T1w
+│   │   ├── 990001-D1_04122025.T2.nii
+│   │   ├── 990001-D1_04122025.T2FLAIR.nii
+│   │   ├── 990001-D1_04122025.T2GRE.nii          129.8 MB
+│   │   ├── 990001-D1_04122025.T2GRE_ph.nii
+│   │   ├── 990001-D1_04122025.HighResHippocampus.nii
+│   │   ├── 990001-D1_04122025.DTI1000.nii        118.4 MB  + .bval + .bvec
+│   │   ├── 990001-D1_04122025.MB_DTI_AP.nii                + .bval + .bvec
+│   │   ├── 990001-D1_04122025.MB_DTI_PA.nii      276.8 MB  + .bval + .bvec
+│   │   └── 990001-D1-<ts>_990001-D1_<SeriesDescription>.json   x9
+│   │                                             sidecars named by scanner series,
+│   │                                             e.g. ..._Accelerated_Sagittal_MPRAGE_(MSV21).json
+│   ├── MRI_990002-C2_05192025/                   same, plus SWI.nii / SWIa.nii (11 json)
+│   └── MRI_990003-C1_06052025/                   same, plus SWI.nii / SWIa.nii (11 json)
+│
+├── PET/                                          raw PET delivery, left in place
+│   ├── PET_990002-C2_05192025/
+│   │   ├── 990002-C2_05192025.Amyloid_PET_3mmblur.nii       92.2 MB  -> pet/ as _PET
+│   │   ├── 990002-C2_05192025.Amyloid_PET_CT.nii           129.0 MB  -> ct/  as _CT
+│   │   ├── 990002-C2_05192025_aPET_mean_3mmblur_T1_space.nii.gz      NOT ingested
+│   │   ├── 990002-C2-CLARiTI_Florbetaben_PET_Brain_AC.json            NOT ingested
+│   │   └── 990002-C2-CT_Brain_1.0_Hf38_iMAR.json                      NOT ingested
+│   └── PET_990003-C1_06022025/                   same five files
+│
+├── ADRC/                                         the subject tree
+│   │
+│   ├── 990001/                                   SUBJECT: MRI only
+│   │   ├── 20250412/                             SESSION
+│   │   │   ├── anat/
+│   │   │   │   └── 990001-20250412_T1w.nii       25.6 MB
+│   │   │   ├── modalities/                       every MRI/ file copied verbatim
+│   │   │   │                                     (T1.nii included), 24 files
+│   │   │   └── freesurfer741/                    329 MB
+│   │   │       └── 990001-20250412_T1w/          see "ONE RECON" below
+│   │   └── logs/
+│   │       └── pet_suvr_processing_990001_<ts>.log
+│   │                                             "No scan dates with SUVR folders"
+│   │                                             — and then the other two Subjects'
+│   │                                             output too (see outputs.md, quirk 1)
+│   │
+│   ├── 990002/                                   SUBJECT: same-day MRI + PET
+│   │   ├── 20250519/                             ONE SESSION HOLDING BOTH
+│   │   │   ├── anat/
+│   │   │   │   └── 990002-20250519_T1w.nii
+│   │   │   ├── modalities/                       28 files
+│   │   │   ├── freesurfer741/                    276 MB
+│   │   │   │   └── 990002-20250519_T1w/
+│   │   │   ├── pet/
+│   │   │   │   └── 990002-20250519_PET.nii       92.2 MB
+│   │   │   ├── ct/
+│   │   │   │   └── 990002-20250519_CT.nii        129.0 MB
+│   │   │   └── suvr/
+│   │   │       ├── logs/
+│   │   │       │   └── suvr_setup_20250519_<ts>.log            0 bytes (quirk 1)
+│   │   │       └── 990002-20250519_PET/          PET output folder = pet stem
+│   │   │           ├── logs/
+│   │   │           │   └── pet_registration_<ts>.log
+│   │   │           └── 990002_pet_20250519_mri_20250519/       PAIR FOLDER, 232 MB
+│   │   │               ├── MRI/
+│   │   │               │   ├── 990002-20250519_T1w.nii              16.8 MB  T1.mgz
+│   │   │               │   ├── 990002-20250519_T1w_aparc+aseg.nii   67.1 MB
+│   │   │               │   ├── 990002-20250519_PET.nii              92.2 MB  copy
+│   │   │               │   ├── 990002-20250519_T1w_asegVolume.csv
+│   │   │               │   ├── 990002-20250519_T1w_aparcstatsVolumLeft.csv
+│   │   │               │   └── 990002-20250519_T1w_aparcstatsVolumRight.csv
+│   │   │               ├── register_scan/
+│   │   │               │   ├── 990002-20250519_reg_990002-20250519_T1w.nii   67.1 MB
+│   │   │               │   └── 990002-20250519_reg_990002-20250519_T1w.mat
+│   │   │               └── res/                  all prefixed <pairdir>_
+│   │   │                   ├── ..._mean_suv.csv          ROI,Name,Value
+│   │   │                   ├── ..._median_suv.csv        ROI,Name,Value
+│   │   │                   ├── ..._total_suv.csv         ROI,Name,Value
+│   │   │                   ├── ..._suvr_cerebellum.csv
+│   │   │                   ├── ..._suvr_cerebellum_gm.csv
+│   │   │                   ├── ..._suvr_combined_cerebellum.csv      Compound, Centiloid
+│   │   │                   ├── ..._suvr_combined_cerebellum_gm.csv
+│   │   │                   ├── ..._max   ..._min                     one number each,
+│   │   │                   └── ..._suv_cer   ..._suv_cer_gm          no extension
+│   │   └── logs/
+│   │       └── pet_suvr_processing_990002_<ts>.log                   0 bytes (quirk 1)
+│   │
+│   └── 990003/                                   SUBJECT: PET before MRI
+│       ├── 20250602/                             PET SESSION
+│       │   ├── pet/
+│       │   │   └── 990003-20250602_PET.nii
+│       │   ├── ct/
+│       │   │   └── 990003-20250602_CT.nii
+│       │   └── suvr/
+│       │       ├── logs/
+│       │       │   └── suvr_setup_20250602_<ts>.log    holds BOTH Subjects' setup (quirk 1)
+│       │       └── 990003-20250602_PET/
+│       │           ├── logs/
+│       │           │   └── pet_registration_<ts>.log
+│       │           └── 990003_pet_20250602_mri_20250605/    MRI date is AFTER PET date;
+│       │               ├── MRI/                             MRI files come from the
+│       │               │   ├── 990003-20250605_T1w.nii      OTHER Session's recon
+│       │               │   ├── 990003-20250605_T1w_aparc+aseg.nii
+│       │               │   ├── 990003-20250602_PET.nii
+│       │               │   └── 990003-20250605_T1w_*.csv    x3
+│       │               ├── register_scan/
+│       │               │   └── 990003-20250602_reg_990003-20250605_T1w.{nii,mat}
+│       │               └── res/                             as above
+│       ├── 20250605/                             MRI SESSION, no PET
+│       │   ├── anat/
+│       │   │   └── 990003-20250605_T1w.nii
+│       │   ├── modalities/                       28 files
+│       │   └── freesurfer741/                    288 MB
+│       │       └── 990003-20250605_T1w/
+│       └── logs/
+│           └── pet_suvr_processing_990003_<ts>.log                   0 bytes (quirk 1)
+│
+│   (no ADRC/logs/ here — in staging, batch-level logs sit beside ADRC/, below)
+│
+├── logs/                                         ingest logs (batch level)
+│   ├── mri_bids_logs/
+│   │   └── mri_bids_batch88_<ts>.log             1_ingest/dropbox_mri_to_bids.py
+│   └── pet_bids_logs/
+│       ├── pet_bids_batch88_<ts>.log             first run, pointed at "pet": found nothing
+│       └── pet_bids_batch88_<ts>.log             second run, "PET": 2 Subjects
+│
+├── fs_logs/
+│   └── batch88.log                               2_freesurfer/mri_processing.py
+│                                                 "Found 3 .nii files"; 3/3 recon,
+│                                                 3/3 hippocampus; ~5.5 h per subject
+│
+├── conversion_logs/
+│   └── conversion_log_<ts>.log                   mri_site_data.py run on ADRC/:
+│                                                 skipped all 3, "not inside a
+│                                                 freesurfer741 directory" (quirk 2)
+│
+├── freesurfer_link/                              5_aggregate/freesurfer_symlink.py
+│   ├── 990001-20250412_T1w/  -> ADRC/990001/20250412/freesurfer741/990001-20250412_T1w
+│   ├── 990002-20250519_T1w/  -> ...              flat: one entry per recon,
+│   └── 990003-20250605_T1w/  -> ...              usable as SUBJECTS_DIR
+│
+├── suvr_link/                                    5_aggregate/suvr_symlink.py
+│   ├── 990002-20250519_PET/  -> ADRC/990002/20250519/suvr/990002-20250519_PET
+│   └── 990003-20250602_PET/  -> ...              flat: one entry per PET output folder
+│                                                 (symlinks on the server; the zip
+│                                                 this was taken from held copies)
+│
+├── mri_csv/                                      5_aggregate/mri_stats_all.py
+│   ├── aseg_stats.csv            68 cols         one row per recon (3)
+│   ├── aparc_volume.csv          76 cols
+│   ├── aparc_thickness.csv       78 cols
+│   ├── wmparc.csv                79 cols
+│   ├── hippocampus.csv           48 cols
+│   └── amygdala.csv              24 cols
+│
+├── suvr_csv/                                     5_aggregate/suvr_stats_all.py
+│   ├── suvr_cerebellum.csv                  122 cols   one row per Pair (2)
+│   ├── suvr_cerebellum_gm.csv               122 cols
+│   ├── suvr_combined_cerebellum.csv          29 cols
+│   └── suvr_combined_cerebellum_gm.csv       29 cols
+│
+└── viewer/                                       5_aggregate/mri_site_data.py, run on
+    ├── conversion_logs/                          freesurfer_link/ with -o viewer
+    │   └── conversion_log_<ts>.log
+    ├── 990001/20250412/                          <subj>/<session>/ — NOT sitedata_mri/
+    │   ├── mri/   T1.nii  brain.nii  wm.nii      16.8 MB each
+    │   │          aparc+aseg.nii                 67.1 MB
+    │   └── surf/  lh.pial.gii  lh.white.gii      ~4-5 MB each
+    │              rh.pial.gii  rh.white.gii
+    ├── 990002/20250519/                          same
+    └── 990003/20250605/                          same
+
+
+ONE RECON  (freesurfer741/<subj>-<date>_T1w/, ~280-330 MB)
+
+  mri/      60 files: T1, brain, brainmask, norm, nu, orig, wm, filled, ribbon,
+            aseg, aparc+aseg, aparc.DKTatlas+aseg, aparc.a2009s+aseg, wmparc (.mgz)
+            ?h.hippoAmygLabels-T1.v22[.CA|.FS60|.HBT][.FSvoxelSpace].mgz
+            ?h.hippoSfVolumes-T1.v22.txt   ?h.amygNucVolumes-T1.v22.txt
+            orig/  transforms/
+  stats/    23 files: aseg, wmparc, brainvol,
+            ?h.aparc[.DKTatlas|.a2009s|.pial], ?h.BA_exvivo[.thresh], ?h.curv, ?h.w-g.pct,
+            hipposubfields.?h.T1.v22, amygdalar-nuclei.?h.T1.v22   (.stats)
+  surf/     90 files     label/  95 files
+  scripts/  recon-all.log, recon-all.done, recon-all-status.log, recon-all.cmd,
+            hippocampal-subfields-T1.log, build-stamp.txt, ...  (no recon-all.error)
+  tmp/  touch/  trash/
+
+
+PAIRING IN THIS BATCH
+
+  Subject   PET        closest MRI   gap    Pair folder
+  990001    —          20250412      —      none
+  990002    20250519   20250519      0 d    990002_pet_20250519_mri_20250519
+  990003    20250602   20250605      3 d    990003_pet_20250602_mri_20250605
+
+  Tracer: both PETs Florbetaben, reported as Compound = Neuraceq.

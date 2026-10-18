@@ -10,6 +10,8 @@ Record, for each of the prepare step, register step, quantify step and recon run
 
 Write down the exact commands you ran, so ticket 07 can repeat them identically.
 
+`examples/processed_batch_tree.txt` and `examples/processed_batch_outputs.md` show what a full run produces on a real batch. Note quirk 1 there: the SUVR scripts write every Subject's log lines into the first Subject's log, and leave the others empty. Collect tool commands from all log files of a step together, not per Subject.
+
 **Blocked by:** None (can start immediately)
 
 **Status:** ready-for-human

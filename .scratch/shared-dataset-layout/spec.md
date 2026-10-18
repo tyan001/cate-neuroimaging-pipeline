@@ -211,3 +211,4 @@ Pairing gains a one-year limit. A PET is paired with the Subject's closest MRI w
 - Domain terms follow `GLOSSARY.md`: Delivery, Session, Session token, Pair. A Session holds at most one MRI and one PET. A PET with no MRI within one year has no Pair unless someone explicitly approves it.
 - The one-year limit is 365 days, inclusive.
 - The test dataset is not in git. It lives on the processing server and in local copies.
+- `examples/processed_batch_tree.txt` is a de-identified real batch after every stage has run. It includes a Session holding both MRI and PET, and a PET paired with an MRI taken three days later. `examples/processed_batch_outputs.md` has its file formats, log excerpts, and quirks of today's scripts.

@@ -73,9 +73,11 @@ ADRC/
 **2. Sessions are bare dates.** `YYYYMMDD`. No time component, no `ses-`. Each subject has exactly
 one non-date child: `logs/`.
 
-**3. A session is either MRI or PET, never both.** MRI sessions hold `anat/`, `freesurfer741/`,
+**3. A session is usually MRI or PET, not both.** MRI sessions hold `anat/`, `freesurfer741/`,
 `sitedata_mri/`. PET sessions hold `pet/`, optionally `ct/`, and `suvr/`. This falls out of
-acquisition — the two modalities are scanned on different days, so each gets its own date folder.
+acquisition: the two modalities are usually scanned on different days, so each gets its own date
+folder. When both are scanned on the same day, one session holds all of these folders. See
+[`examples/processed_batch_tree.txt`](../examples/processed_batch_tree.txt).
 
 **4. Filenames are `<subjid>-<YYYYMMDD>_<SUFFIX>.nii`.** Hyphen between ID and date, underscore
 before the suffix. This is parsed by nearly every script; deviations are silently skipped.
@@ -126,7 +128,10 @@ NWSI/ADRC/                      ← the assembled dataset
 ```
 
 Steps 1–3 are covered in [02-mri-processing.md](02-mri-processing.md) and
-[03-pet-centiloid.md](03-pet-centiloid.md). The merge:
+[03-pet-centiloid.md](03-pet-centiloid.md). For a real staging batch after every stage has run
+(de-identified), see [`examples/processed_batch_tree.txt`](../examples/processed_batch_tree.txt).
+Its file formats and logs are in [`examples/processed_batch_outputs.md`](../examples/processed_batch_outputs.md).
+The merge:
 
 ```bash
 export PROCESSING_ROOT=/data/Processing
