@@ -28,15 +28,23 @@ def run_docker_container(cpu_count, directory, container_name, image, license_pa
             f"Remove it first: docker rm -f {full_name}"
         )
 
+    # Run as the host user so files written to the bind mount aren't root-owned.
+    # Windows has no getuid, and Docker Desktop mounts there carry no Linux owner,
+    # so the image's default non-root user is fine.
+    user_args = []
+    if hasattr(os, 'getuid'):
+        user_args = [
+            '--user', f'{os.getuid()}:{os.getgid()}',
+            # The host UID has no home in the image; tools (e.g. MATLAB runtime) need a writable HOME
+            '-e', 'HOME=/tmp',
+        ]
+
     # Configure container with our combined fs-fsl image
     docker_command = [
         'docker', 'run', '-d', '-it',
         '--cpus', str(cpu_count),
         '--name', full_name,
-        # Run as the host user so files written to the bind mount aren't root-owned
-        '--user', f'{os.getuid()}:{os.getgid()}',
-        # The host UID has no home in the image; tools (e.g. MATLAB runtime) need a writable HOME
-        '-e', 'HOME=/tmp',
+        *user_args,
         '-e', f'CPU_CORES={cpu_count}',
         '-e', f'CONTAINER_NAME={directory.name}',
         '-v', f'{directory}:/workspace/data',

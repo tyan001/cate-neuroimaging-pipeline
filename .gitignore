@@ -46,3 +46,5 @@ venv/
 .vscode/
 .idea/
 *.swp
+batch88.zip
+claude_output.txt

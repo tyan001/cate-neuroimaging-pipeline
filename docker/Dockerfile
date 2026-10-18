@@ -79,9 +79,10 @@ RUN pip3 install --no-cache-dir -r /tmp/requirements.txt && \
 # Directory copies (not globs) so data files such as FreesurferLUTR.txt,
 # which suvr.py loads from its own directory, actually land in the image.
 RUN mkdir -p /workspace
-COPY pipeline/2_freesurfer/ /workspace/
+COPY pipeline/2_freesurfer/ /workspace/freesurfer
 COPY pipeline/3_suvr/       /workspace/suvr/
 COPY pipeline/4_qc/         /workspace/qc/
+COPY pipeline/5_aggregate/ /workspace/aggregate/
 
 # ---------- Environment ----------
 ENV FSLTCLSH=$FSLDIR/bin/fsltclsh \
@@ -91,6 +92,14 @@ ENV FSLTCLSH=$FSLDIR/bin/fsltclsh \
 
 RUN echo 'source $FREESURFER_HOME/SetUpFreeSurfer.sh' >> /etc/bash.bashrc && \
     echo 'source $FSLDIR/etc/fslconf/fsl.sh' >> /etc/bash.bashrc
+
+# ---------- Non-root user ----------
+# Default so a bare `docker run` isn't root. processing_container.py overrides
+# it with --user <host uid>:<host gid> so outputs on the bind mount belong to
+# whoever launched the run.
+RUN groupadd --gid 1000 freesurfer && \
+    useradd --uid 1000 --gid freesurfer --create-home --shell /bin/bash freesurfer
+USER freesurfer
 
 WORKDIR /workspace
 

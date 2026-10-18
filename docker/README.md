@@ -35,6 +35,7 @@ Or by hand:
 
 ```bash
 docker run -d -it --name fs7 \
+  --user "$(id -u):$(id -g)" -e HOME=/tmp \
   -e CPU_CORES=8 \
   -v /path/to/ADRC:/workspace/data \
   -v ~/license.txt:/usr/local/freesurfer/.license:ro \
